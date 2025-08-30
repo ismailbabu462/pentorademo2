@@ -213,7 +213,7 @@ body {
 
 /* Terminal/console styles */
 .terminal {
-  @apply font-mono text-sm bg-terminal text-green-400;
+  @apply font-mono text-sm bg-slate-900 text-green-400;
   @apply border border-green-500/20 rounded-lg p-4;
   @apply shadow-lg;
 }
