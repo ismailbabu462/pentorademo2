@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { api } from '../App';
+import api from '../lib/api';
 import { toast } from 'sonner';
 
 const NotesPage = () => {
@@ -27,6 +27,7 @@ const NotesPage = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   
   const [formData, setFormData] = useState({
     project_id: '',
@@ -42,12 +43,72 @@ const NotesPage = () => {
 
   const fetchNotes = async () => {
     try {
-      // Since we don't have a global notes endpoint, we'll need to implement it
-      // For now, showing empty state
-      setNotes([]);
+      console.log('Fetching notes...');
+      
+      // Try to fetch notes from API first
+      try {
+        const projectsResponse = await api.get('/projects');
+        const allNotes = [];
+        
+        // For each project, fetch its notes
+        for (const project of projectsResponse.data) {
+          try {
+            const notesResponse = await api.get(`/projects/${project.id}/notes`);
+            if (notesResponse.data && Array.isArray(notesResponse.data)) {
+              allNotes.push(...notesResponse.data.map(note => ({
+                ...note,
+                project_name: project.name
+              })));
+            }
+          } catch (error) {
+            console.log(`No notes for project ${project.id}`);
+          }
+        }
+        
+        setNotes(allNotes);
+        return;
+      } catch (apiError) {
+        console.log('API not available, using mock data');
+      }
+      
+      // If API is not available, create mock data for development
+      const mockNotes = [
+        {
+          id: 1,
+          project_id: 1,
+          title: 'SQL Injection in Login Form',
+          content: 'Found SQL injection vulnerability in the login form. The application is vulnerable to boolean-based blind SQL injection.',
+          tags: ['sql-injection', 'web', 'critical'],
+          created_at: '2024-01-20T10:30:00Z',
+          updated_at: '2024-01-20T10:30:00Z'
+        },
+        {
+          id: 2,
+          project_id: 1,
+          title: 'XSS in Search Function',
+          content: 'Reflected XSS vulnerability found in the search functionality. User input is not properly sanitized.',
+          tags: ['xss', 'web', 'medium'],
+          created_at: '2024-01-21T14:15:00Z',
+          updated_at: '2024-01-21T14:15:00Z'
+        },
+        {
+          id: 3,
+          project_id: 2,
+          title: 'Directory Traversal',
+          content: 'Path traversal vulnerability allows access to sensitive files outside web root.',
+          tags: ['directory-traversal', 'web', 'high'],
+          created_at: '2024-01-26T09:45:00Z',
+          updated_at: '2024-01-26T09:45:00Z'
+        }
+      ];
+      
+      setNotes(mockNotes);
+      toast.info('Using mock data - Backend not available');
+      
     } catch (error) {
       console.error('Failed to fetch notes:', error);
       toast.error('Failed to load notes');
+      setNotes([]);
     } finally {
       setLoading(false);
     }
@@ -121,15 +182,16 @@ const NotesPage = () => {
   };
 
   const getProjectName = (projectId) => {
+    if (!projects) return 'Unknown Project';
     const project = projects.find(p => p.id === projectId);
     return project ? project.name : 'Unknown Project';
   };
 
-  const filteredNotes = notes.filter(note =>
+  const filteredNotes = notes?.filter(note =>
     note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     note.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    note.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+    note.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+  ) || [];
 
   if (loading) {
     return (
@@ -152,14 +214,14 @@ const NotesPage = () => {
         <Button 
           className="btn-primary" 
           onClick={() => setShowCreateDialog(true)}
-          disabled={projects.length === 0}
+          disabled={!projects || projects.length === 0}
         >
           <Plus className="w-4 h-4 mr-2" />
           New Note
         </Button>
       </div>
 
-      {projects.length === 0 ? (
+      {!projects || projects.length === 0 ? (
         <Card className="glass">
           <CardContent className="text-center py-12">
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -175,7 +237,8 @@ const NotesPage = () => {
       ) : (
         <>
           {/* Search */}
-          <div className="relative max-w-md">
+          {notes && (
+            <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               placeholder="Search notes..."
@@ -183,10 +246,11 @@ const NotesPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
-          </div>
+            </div>
+          )}
 
           {/* Notes Grid */}
-          {filteredNotes.length === 0 ? (
+          {(!notes || !filteredNotes || filteredNotes.length === 0) ? (
             <Card className="glass">
               <CardContent className="text-center py-12">
                 <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -199,7 +263,7 @@ const NotesPage = () => {
                     : 'Start documenting your penetration testing findings and methodologies'
                   }
                 </p>
-                {!searchTerm && (
+                {!searchTerm && notes && (
                   <Button className="btn-primary" onClick={() => setShowCreateDialog(true)}>
                     <Plus className="w-4 h-4 mr-2" />
                     Create First Note
@@ -208,77 +272,86 @@ const NotesPage = () => {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredNotes.map((note) => (
-                <Card key={note.id} className="glass hover:shadow-lg transition-all duration-300 group">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg line-clamp-2">{note.title}</CardTitle>
-                        <CardDescription className="mt-1">
-                          {getProjectName(note.project_id)}
-                        </CardDescription>
+            notes && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredNotes?.map((note) => (
+                  <Card key={note.id} className="glass hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => {
+                    setSelectedNote(note);
+                    setShowPreviewDialog(true);
+                  }}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg line-clamp-2">{note.title}</CardTitle>
+                          <CardDescription className="mt-1">
+                            {getProjectName(note.project_id)}
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="sm" onClick={(e) => {
+                            e.stopPropagation();
+                            // Edit functionality can be added here
+                          }}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedNote(note);
+                              setShowDeleteDialog(true);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => {
-                            setSelectedNote(note);
-                            setShowDeleteDialog(true);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-3">
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {note.content}
-                    </p>
+                    </CardHeader>
                     
-                    {note.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {note.tags.slice(0, 3).map((tag, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            <Tag className="w-2 h-2 mr-1" />
-                            {tag}
-                          </Badge>
-                        ))}
-                        {note.tags.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{note.tags.length - 3} more
-                          </Badge>
+                    <CardContent className="space-y-3">
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {note.content}
+                      </p>
+                      
+                      {note.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {note.tags.slice(0, 3).map((tag, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              <Tag className="w-2 h-2 mr-1" />
+                              {tag}
+                            </Badge>
+                          ))}
+                          {note.tags.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{note.tags.length - 3} more
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{formatDate(note.created_at)}</span>
+                        </div>
+                        {note.updated_at !== note.created_at && (
+                          <span>Updated {formatDate(note.updated_at)}</span>
                         )}
                       </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>{formatDate(note.created_at)}</span>
-                      </div>
-                      {note.updated_at !== note.created_at && (
-                        <span>Updated {formatDate(note.updated_at)}</span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )
           )}
         </>
       )}
 
       {/* Create Note Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create New Note</DialogTitle>
             <DialogDescription>
@@ -297,7 +370,7 @@ const NotesPage = () => {
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((project) => (
+                  {projects?.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
                     </SelectItem>
@@ -324,8 +397,9 @@ const NotesPage = () => {
                 value={formData.content}
                 onChange={(e) => setFormData({...formData, content: e.target.value})}
                 placeholder="Document your findings, steps, and observations..."
-                rows={6}
+                rows={10}
                 required
+                className="min-h-[200px]"
               />
             </div>
             
@@ -348,6 +422,53 @@ const NotesPage = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Note Preview Dialog */}
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">{selectedNote?.title}</DialogTitle>
+            <DialogDescription>
+              {selectedNote && getProjectName(selectedNote.project_id)} • {selectedNote && formatDate(selectedNote.created_at)}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {selectedNote?.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selectedNote.tags.map((tag, index) => (
+                  <Badge key={index} variant="secondary" className="text-sm">
+                    <Tag className="w-3 h-3 mr-1" />
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            
+            <div className="prose prose-sm max-w-none">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                {selectedNote?.content}
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between text-xs text-muted-foreground pt-4 border-t">
+              <div className="flex items-center space-x-1">
+                <Calendar className="w-3 h-3" />
+                <span>Created: {selectedNote && formatDate(selectedNote.created_at)}</span>
+              </div>
+              {selectedNote?.updated_at !== selectedNote?.created_at && (
+                <span>Updated: {selectedNote && formatDate(selectedNote.updated_at)}</span>
+              )}
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

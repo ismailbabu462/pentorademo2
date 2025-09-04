@@ -1,0 +1,8 @@
+# Bağımlılıklar (en önemlisi bu)
+node_modules
+
+# Build sonucu oluşan klasör
+build
+
+# Ortam değişkenleri dosyası
+.env

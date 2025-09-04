@@ -1,0 +1,76 @@
+# Pentora Security Platform - Production Configuration
+pentorasecbeta.mywire.org {
+    # Enable automatic HTTPS
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        
+        # Prevent MIME type sniffing
+        X-Content-Type-Options "nosniff"
+        
+        # Enable XSS protection
+        X-XSS-Protection "1; mode=block"
+        
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        
+        # Content Security Policy
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: ws:; frame-ancestors 'none';"
+    }
+
+    # API routes - Backend
+    handle /api/* {
+        reverse_proxy backend:8001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # WebSocket support for AI and real-time features
+    handle /ws/* {
+        reverse_proxy backend:8001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Static files and SPA routing - Frontend
+    handle {
+        root * /usr/share/nginx/html
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+
+    # Health check endpoint
+    handle /health {
+        respond "OK" 200
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
+
+# Redirect www to non-www
+www.pentorasecbeta.mywire.org {
+    redir https://pentorasecbeta.mywire.org{uri} permanent
+}
+
+# Redirect HTTP to HTTPS
+http://pentorasecbeta.mywire.org {
+    redir https://pentorasecbeta.mywire.org{uri} permanent
+}

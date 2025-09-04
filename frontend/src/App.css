@@ -1,38 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Inter:wght@100..900&display=swap');
 
 :root {
-  /* Light theme colors - Security/Pentest focused */
-  --background: 255 255 255;
-  --foreground: 15 23 42;
-  --muted: 241 245 249;
-  --muted-foreground: 100 116 139;
-  --popover: 255 255 255;
-  --popover-foreground: 15 23 42;
-  --card: 255 255 255;
-  --card-foreground: 15 23 42;
-  --border: 226 232 240;
-  --input: 226 232 240;
-  --primary: 34 197 94;
-  --primary-foreground: 255 255 255;
-  --secondary: 241 245 249;
-  --secondary-foreground: 15 23 42;
-  --accent: 241 245 249;
-  --accent-foreground: 15 23 42;
-  --destructive: 239 68 68;
-  --destructive-foreground: 248 250 252;
-  --ring: 34 197 94;
-  --radius: 0.5rem;
+  /* Modern Dark Theme - Clean, Professional, Minimal */
+  --background: 23 23 23;
+  --foreground: 250 250 250;
+  --primary: 250 250 250;
+  --ring: 250 250 250;
   
-  /* Custom pentest theme colors */
-  --success: 34 197 94;
-  --warning: 245 158 11;
-  --critical: 220 38 38;
-  --info: 59 130 246;
-  --terminal: 15 23 42;
+  /* Custom modern theme colors - Grayscale only */
+  --success: 192 192 192;
+  --warning: 160 160 160;
+  --critical: 128 128 128;
+  --info: 96 96 96;
+  --terminal: 250 250 250;
 }
 
 .dark {
-  /* Dark theme - Main pentest interface */
+  /* Dark theme - Modern, Clean, Professional */
   --background: 2 6 23;
   --foreground: 248 250 252;
   --muted: 15 23 42;
@@ -43,7 +27,7 @@
   --card-foreground: 248 250 252;
   --border: 30 41 59;
   --input: 30 41 59;
-  --primary: 34 197 94;
+  --primary: 248 250 252;
   --primary-foreground: 2 6 23;
   --secondary: 30 41 59;
   --secondary-foreground: 248 250 252;
@@ -51,11 +35,65 @@
   --accent-foreground: 248 250 252;
   --destructive: 220 38 38;
   --destructive-foreground: 248 250 252;
-  --ring: 34 197 94;
+  --ring: 248 250 252;
   
-  /* Enhanced dark colors for pentest aesthetic */
+  /* Enhanced dark colors for modern aesthetic */
   --terminal: 2 6 23;
-  --matrix-green: 0 255 65;
+  --matrix-green: 128 128 128;
+}
+
+.light {
+  /* Standard Light theme - Pale blue, royal blue, eggplant */
+  --background: 204 100% 97%; /* #EFFAFD */
+  --foreground: 0 0% 9%;
+  --muted: 204 100% 94%;
+  --muted-foreground: 0 0% 45%;
+  --popover: 204 100% 97%;
+  --popover-foreground: 0 0% 9%;
+  --card: 204 100% 97%;
+  --card-foreground: 0 0% 9%;
+  --border: 204 100% 90%;
+  --input: 204 100% 90%;
+  --primary: 218 69% 57%; /* #4A8BDF */
+  --primary-foreground: 0 0% 98%;
+  --secondary: 204 100% 94%;
+  --secondary-foreground: 0 0% 9%;
+  --accent: 322 100% 31%; /* #A0006D */
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 218 69% 57%;
+  
+  /* Enhanced light colors for modern aesthetic */
+  --terminal: 204 100% 97%;
+  --matrix-green: 218 69% 57%;
+}
+
+.light.elite {
+  /* Elite Light theme - Deep red, blackcurrant, orange, rose pink */
+  --background: 346 89% 85%; /* Light rose pink background */
+  --foreground: 250 55% 15%; /* Dark blackcurrant */
+  --muted: 346 89% 87%;
+  --muted-foreground: 250 55% 25%;
+  --popover: 346 89% 90%;
+  --popover-foreground: 250 55% 15%;
+  --card: 346 89% 90%;
+  --card-foreground: 250 55% 15%;
+  --border: 346 89% 82%;
+  --input: 346 89% 82%;
+  --primary: 346 89% 30%; /* Deep red #8E0D3C */
+  --primary-foreground: 0 0% 98%;
+  --secondary: 250 55% 15%; /* Blackcurrant #1D1842 */
+  --secondary-foreground: 0 0% 98%;
+  --accent: 6 87% 57%; /* Orange #EF3B33 */
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 346 89% 30%;
+  
+  /* Enhanced elite colors for modern aesthetic */
+  --terminal: 346 89% 85%;
+  --matrix-green: 6 87% 57%;
 }
 
 * {
@@ -96,21 +134,21 @@ body {
   font-variant-ligatures: normal;
 }
 
-/* Gradient backgrounds for security theme */
+/* Gradient backgrounds for modern theme */
 .gradient-security {
   background: linear-gradient(135deg, hsl(var(--terminal)), hsl(var(--muted)));
 }
 
 .gradient-success {
-  background: linear-gradient(135deg, rgb(34 197 94), rgb(21 128 61));
+  background: linear-gradient(135deg, rgb(64 64 64), rgb(32 32 32));
 }
 
 .gradient-warning {
-  background: linear-gradient(135deg, rgb(245 158 11), rgb(217 119 6));
+  background: linear-gradient(135deg, rgb(96 96 96), rgb(64 64 64));
 }
 
 .gradient-critical {
-  background: linear-gradient(135deg, rgb(220 38 38), rgb(185 28 28));
+  background: linear-gradient(135deg, rgb(32 32 32), rgb(16 16 16));
 }
 
 /* Glass morphism effect */
@@ -155,71 +193,89 @@ body {
   }
 }
 
-/* Status indicators */
+/* Status colors - Modern grayscale */
 .status-active {
-  @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300;
+  @apply bg-gray-700 text-gray-100 border-gray-600;
 }
 
 .status-completed {
-  @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300;
+  @apply bg-gray-600 text-gray-100 border-gray-500;
 }
 
-.status-paused {
-  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300;
+.status-pending {
+  @apply bg-gray-500 text-gray-100 border-gray-400;
 }
 
-.status-planning {
-  @apply bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300;
+.status-cancelled {
+  @apply bg-gray-400 text-gray-900 border-gray-300;
 }
 
-/* Vulnerability severity colors */
+/* Severity colors - Modern grayscale */
 .severity-critical {
-  @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300;
+  @apply bg-gray-900 text-gray-100 border-gray-800;
 }
 
 .severity-high {
-  @apply bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300;
+  @apply bg-gray-800 text-gray-100 border-gray-700;
 }
 
 .severity-medium {
-  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300;
+  @apply bg-gray-700 text-gray-100 border-gray-600;
 }
 
 .severity-low {
-  @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300;
+  @apply bg-gray-600 text-gray-100 border-gray-500;
 }
 
 .severity-info {
-  @apply bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300;
+  @apply bg-gray-500 text-gray-100 border-gray-400;
 }
 
 /* Custom button styles */
 .btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  @apply bg-gray-800 hover:bg-gray-700 text-gray-100 border border-gray-600 hover:border-gray-500;
   @apply shadow-lg hover:shadow-xl;
   @apply transition-all duration-200;
 }
 
 .btn-secondary {
-  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  @apply bg-gray-700 hover:bg-gray-600 text-gray-100 border border-gray-500 hover:border-gray-400;
   @apply border border-border;
   @apply transition-all duration-200;
 }
 
 .btn-destructive {
-  @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  @apply bg-gray-800 hover:bg-gray-700 text-gray-100 border border-gray-600 hover:border-gray-500;
   @apply transition-all duration-200;
 }
 
-/* Terminal/console styles */
+/* Terminal/console styles - Modern grayscale */
 .terminal {
-  @apply font-mono text-sm bg-slate-900 text-green-400;
-  @apply border border-green-500/20 rounded-lg p-4;
-  @apply shadow-lg;
+  @apply bg-gray-900 text-gray-100 border border-gray-700 rounded-lg p-4 font-mono text-sm;
+}
+
+.terminal-header {
+  @apply flex items-center justify-between mb-3 pb-2 border-b border-gray-700;
+}
+
+.terminal-title {
+  @apply text-gray-300 font-medium;
+}
+
+.terminal-content {
+  @apply text-gray-100;
+}
+
+.terminal-command {
+  @apply text-gray-400;
+}
+
+.terminal-output {
+  @apply text-gray-200 mt-2;
 }
 
 .dark .terminal {
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.1);
+  box-shadow: 0 0 20px rgba(128, 128, 128, 0.1);
 }
 
 /* Responsive design */
@@ -269,4 +325,107 @@ body {
   80%, 100% {
     text-shadow: .25em 0 0 white, .5em 0 0 white;
   }
+}
+
+/* Button variants */
+.btn-success {
+  @apply bg-gray-600 hover:bg-gray-500 text-gray-100 border border-gray-500 hover:border-gray-400;
+}
+
+.btn-warning {
+  @apply bg-gray-500 hover:bg-gray-400 text-gray-900 border border-gray-400 hover:border-gray-300;
+}
+
+.btn-danger {
+  @apply bg-gray-800 hover:bg-gray-700 text-gray-100 border border-gray-600 hover:border-gray-500;
+}
+
+/* Card styling */
+.card {
+  @apply bg-gray-800 border border-gray-700 rounded-lg shadow-lg;
+}
+
+.card-header {
+  @apply border-b border-gray-700 p-4;
+}
+
+.card-content {
+  @apply p-4;
+}
+
+.card-footer {
+  @apply border-t border-gray-700 p-4;
+}
+
+/* Form elements */
+.input {
+  @apply bg-gray-700 border border-gray-600 text-gray-100 placeholder-gray-400 focus:border-gray-500 focus:ring-gray-500;
+}
+
+.select {
+  @apply bg-gray-700 border border-gray-600 text-gray-100 focus:border-gray-500 focus:ring-gray-500;
+}
+
+.textarea {
+  @apply bg-gray-700 border border-gray-600 text-gray-100 placeholder-gray-400 focus:border-gray-500 focus:ring-gray-500;
+}
+
+/* Navigation */
+.nav-item {
+  @apply text-gray-300 hover:text-gray-100 hover:bg-gray-700;
+}
+
+.nav-item.active {
+  @apply text-gray-100 bg-gray-700;
+}
+
+/* Sidebar */
+.sidebar {
+  @apply bg-gray-900 border-r border-gray-700;
+}
+
+.sidebar-item {
+  @apply text-gray-300 hover:text-gray-100 hover:bg-gray-800;
+}
+
+.sidebar-item.active {
+  @apply text-gray-100 bg-gray-800;
+}
+
+/* Table */
+.table {
+  @apply bg-gray-800 border border-gray-700;
+}
+
+.table-header {
+  @apply bg-gray-700 text-gray-100;
+}
+
+.table-row {
+  @apply border-b border-gray-700 hover:bg-gray-700;
+}
+
+.table-cell {
+  @apply text-gray-100;
+}
+
+/* Badge */
+.badge {
+  @apply bg-gray-600 text-gray-100 border border-gray-500;
+}
+
+.badge-success {
+  @apply bg-gray-500 text-gray-900 border border-gray-400;
+}
+
+.badge-warning {
+  @apply bg-gray-400 text-gray-900 border border-gray-300;
+}
+
+.badge-danger {
+  @apply bg-gray-800 text-gray-100 border border-gray-700;
+}
+
+.badge-info {
+  @apply bg-gray-600 text-gray-100 border border-gray-500;
 }

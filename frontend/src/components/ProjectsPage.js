@@ -9,7 +9,10 @@ import {
   Target,
   Users,
   Edit,
-  Trash2
+  Trash2,
+  Activity,
+  Eye,
+  Download
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -20,7 +23,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { api } from '../App';
+import api from '../lib/api';
 import { toast } from 'sonner';
 
 const ProjectsPage = () => {
@@ -31,6 +34,9 @@ const ProjectsPage = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [toolOutputs, setToolOutputs] = useState({});
+  const [showToolOutputs, setShowToolOutputs] = useState({});
+  const [refreshingOutputs, setRefreshingOutputs] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -47,11 +53,68 @@ const ProjectsPage = () => {
 
   const fetchProjects = async () => {
     try {
+      console.log('Fetching projects...');
       const response = await api.get('/projects');
-      setProjects(response.data);
+      console.log('Projects response:', response.data);
+      setProjects(response.data || []);
+      
+      // Fetch tool outputs for each project
+      const projectsData = response.data || [];
+      console.log('🔍 ProjectsPage: Fetching tool outputs for', projectsData.length, 'projects');
+      const outputsData = {};
+      for (const project of projectsData) {
+        try {
+          console.log(`🔍 ProjectsPage: Fetching outputs for project ${project.id} (${project.name})`);
+          const outputsResponse = await api.get(`/tools/outputs?project_id=${project.id}`);
+          console.log(`🔍 ProjectsPage: Outputs for project ${project.id}:`, outputsResponse.outputs?.length || 0);
+          outputsData[project.id] = outputsResponse.outputs || [];
+        } catch (error) {
+          console.error(`❌ ProjectsPage: Failed to fetch tool outputs for project ${project.id}:`, error);
+          outputsData[project.id] = [];
+        }
+      }
+      console.log('🔍 ProjectsPage: Final outputs data:', outputsData);
+      setToolOutputs(outputsData);
     } catch (error) {
-      console.error('Failed to fetch projects:', error);
-      toast.error('Failed to load projects');
+      console.error('❌ ProjectsPage: Failed to fetch projects:', error);
+      
+      // If API is not available, create mock data for development
+      if (error.code === 'ERR_NETWORK' || error.response?.status === 404) {
+        console.log('Creating mock projects data...');
+        const mockProjects = [
+          {
+            id: 1,
+            name: 'ACME Corp Security Assessment',
+            description: 'Comprehensive penetration testing for ACME Corporation',
+            status: 'active',
+            start_date: '2024-01-15',
+            end_date: '2024-02-15',
+            team_members: ['john@example.com', 'jane@example.com'],
+            targets: ['acme.com', 'api.acme.com'],
+            created_at: '2024-01-10',
+            updated_at: '2024-01-20'
+          },
+          {
+            id: 2,
+            name: 'TechStart Web App Test',
+            description: 'Web application security testing for TechStart',
+            status: 'planning',
+            start_date: '2024-02-01',
+            end_date: '2024-03-01',
+            team_members: ['john@example.com'],
+            targets: ['techstart.io'],
+            created_at: '2024-01-25',
+            updated_at: '2024-01-25'
+          }
+        ];
+        setProjects(mockProjects);
+        setToolOutputs({}); // Mock data için boş tool outputs
+        toast.info('Using mock data - Backend not available');
+      } else {
+        toast.error('Failed to load projects');
+        setProjects([]);
+        setToolOutputs({});
+      }
     } finally {
       setLoading(false);
     }
@@ -104,6 +167,36 @@ const ProjectsPage = () => {
     });
   };
 
+  // Refresh tool outputs for all projects
+  const refreshToolOutputs = async () => {
+    if (projects.length === 0) return;
+    
+    setRefreshingOutputs(true);
+    try {
+      console.log('🔄 ProjectsPage: Refreshing tool outputs...');
+      const outputsData = {};
+      for (const project of projects) {
+        try {
+          console.log(`🔄 ProjectsPage: Refreshing outputs for project ${project.id} (${project.name})`);
+          const outputsResponse = await api.get(`/tools/outputs?project_id=${project.id}`);
+          console.log(`🔄 ProjectsPage: Outputs for project ${project.id}:`, outputsResponse.outputs?.length || 0);
+          outputsData[project.id] = outputsResponse.outputs || [];
+        } catch (error) {
+          console.error(`❌ ProjectsPage: Failed to refresh tool outputs for project ${project.id}:`, error);
+          outputsData[project.id] = [];
+        }
+      }
+      console.log('🔄 ProjectsPage: Refreshed outputs data:', outputsData);
+      setToolOutputs(outputsData);
+      toast.success('Tool outputs refreshed');
+    } catch (error) {
+      console.error('❌ ProjectsPage: Failed to refresh tool outputs:', error);
+      toast.error('Failed to refresh tool outputs');
+    } finally {
+      setRefreshingOutputs(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusClasses = {
       active: 'status-active',
@@ -127,12 +220,12 @@ const ProjectsPage = () => {
     });
   };
 
-  const filteredProjects = projects.filter(project => {
+  const filteredProjects = projects?.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
     return matchesSearch && matchesStatus;
-  });
+  }) || [];
 
   if (loading) {
     return (
@@ -152,17 +245,30 @@ const ProjectsPage = () => {
             Manage your penetration testing projects
           </p>
         </div>
-        <Button 
-          className="btn-primary" 
-          onClick={() => setShowCreateDialog(true)}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Project
-        </Button>
+        <div className="flex space-x-3">
+          <Button
+            onClick={refreshToolOutputs}
+            disabled={refreshingOutputs || projects.length === 0}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            <Activity className="w-4 h-4" />
+            <span>{refreshingOutputs ? 'Refreshing...' : 'Refresh Tools'}</span>
+          </Button>
+          <Button 
+            className="btn-primary" 
+            onClick={() => setShowCreateDialog(true)}
+            disabled={!projects}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Project
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center space-x-4">
+      {projects && (
+        <div className="flex items-center space-x-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
@@ -186,11 +292,13 @@ const ProjectsPage = () => {
             <SelectItem value="completed">Completed</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+        </div>
+      )}
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProjects.map((project) => (
+      {projects && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredProjects?.map((project) => (
           <Card key={project.id} className="glass hover:shadow-lg transition-all duration-300 group">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
@@ -261,6 +369,52 @@ const ProjectsPage = () => {
                 </div>
               </div>
               
+              {/* Tool Outputs Section */}
+              {toolOutputs[project.id] && toolOutputs[project.id].length > 0 && (
+                <div className="border-t pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center text-muted-foreground">
+                      <Activity className="w-3 h-3 mr-1" />
+                      <span className="text-xs font-medium">Scan Results</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowToolOutputs(prev => ({
+                        ...prev,
+                        [project.id]: !prev[project.id]
+                      }))}
+                      className="text-xs h-6 px-2"
+                    >
+                      {showToolOutputs[project.id] ? 'Hide' : 'Show'} ({toolOutputs[project.id].length})
+                    </Button>
+                  </div>
+                  
+                  {showToolOutputs[project.id] && (
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {toolOutputs[project.id].slice(0, 3).map((output) => (
+                        <div key={output.id} className="bg-muted/50 rounded p-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{output.tool_name}</span>
+                            <span className="text-muted-foreground">
+                              {new Date(output.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="text-muted-foreground truncate">
+                            Target: {output.target}
+                          </div>
+                        </div>
+                      ))}
+                      {toolOutputs[project.id].length > 3 && (
+                        <div className="text-xs text-muted-foreground text-center">
+                          +{toolOutputs[project.id].length - 3} more scans
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <Link to={`/projects/${project.id}`} className="block">
                 <Button variant="outline" className="w-full mt-3">
                   View Project →
@@ -269,10 +423,11 @@ const ProjectsPage = () => {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Empty State */}
-      {filteredProjects.length === 0 && !loading && (
+      {(!projects || !filteredProjects || filteredProjects.length === 0) && !loading && (
         <div className="text-center py-12">
           <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
             <Target className="w-12 h-12 text-muted-foreground" />
@@ -286,7 +441,7 @@ const ProjectsPage = () => {
               : 'Create your first penetration testing project to get started'
             }
           </p>
-          {!searchTerm && statusFilter === 'all' && (
+          {!searchTerm && statusFilter === 'all' && projects && (
             <Button className="btn-primary" onClick={() => setShowCreateDialog(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Create First Project
