@@ -22,15 +22,23 @@ sleep 30
 echo "📊 Service Status:"
 docker-compose -f docker-compose.dev.yml ps
 
+# Get external IP and domain
+EXTERNAL_IP=$(curl -s https://api.ipify.org || echo "YOUR_VM_IP")
+DOMAIN="pentorasecbeta.mywire.org"
+
 echo ""
 echo "🎉 Development environment started!"
 echo ""
 echo "📋 Access URLs:"
-echo "  🌐 Frontend: http://localhost:3000"
-echo "  🔧 API: http://localhost:8001"
-echo "  ❤️ Health: http://localhost:8001/health"
-echo "  🗄️ phpMyAdmin: http://localhost:8080"
-echo "  🤖 Ollama: http://localhost:11434"
+echo "  🌐 Frontend: http://$EXTERNAL_IP:3000"
+echo "  🔧 API: http://$EXTERNAL_IP:8001"
+echo "  ❤️ Health: http://$EXTERNAL_IP:8001/health"
+echo "  🗄️ phpMyAdmin: http://$EXTERNAL_IP:8080"
+echo "  🤖 Ollama: http://$EXTERNAL_IP:11434"
+echo ""
+echo "🌍 Domain URLs (if DNS configured):"
+echo "  🌐 Frontend: https://$DOMAIN"
+echo "  🔧 API: https://$DOMAIN/api"
 echo ""
 echo "🔧 Useful Commands:"
 echo "  View logs: docker-compose -f docker-compose.dev.yml logs"

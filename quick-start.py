@@ -123,8 +123,10 @@ def main():
     print(f"  🌐 Frontend: https://{domain}")
     print(f"  🔧 API: https://{domain}/api")
     print(f"  ❤️ Health: https://{domain}/health")
+    print(f"  🗄️ phpMyAdmin: https://{domain}/phpmyadmin")
     print(f"  🖥️ Desktop Agent: ws://{external_ip}:13337")
     print(f"  🖥️ Desktop Agent Health: http://{external_ip}:13338/health")
+    print(f"  🔧 Backend Direct: http://{external_ip}:8001")
     
     print("\n🔧 Useful Commands:")
     print("  View logs: docker-compose -f docker-compose.prod.yml --env-file production.env logs")

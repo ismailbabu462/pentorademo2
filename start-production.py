@@ -63,6 +63,16 @@ class ProductionManager:
             'desktop-agent': f'http://{self.external_ip}:13338/health'
         }
         
+        # Service URLs for display
+        self.service_urls = {
+            'frontend': f'{protocol}://{self.domain}',
+            'api': f'{protocol}://{self.domain}/api',
+            'health': f'{protocol}://{self.domain}/health',
+            'phpmyadmin': f'{protocol}://{self.domain}/phpmyadmin',
+            'desktop_agent': f'ws://{self.external_ip}:13337',
+            'desktop_agent_health': f'http://{self.external_ip}:13338/health'
+        }
+        
     def get_external_ip(self) -> str:
         """Get external IP address of the VM"""
         try:
@@ -376,6 +386,11 @@ class ProductionManager:
         for service, port in self.required_ports.items():
             status = "✅ Open" if not self.check_port_available(port) else "❌ Closed"
             print(f"  {service} (port {port}): {status}")
+        
+        # Service URLs
+        print(f"\n🌐 SERVICE URLs:")
+        for service, url in self.service_urls.items():
+            print(f"  {service}: {url}")
     
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""

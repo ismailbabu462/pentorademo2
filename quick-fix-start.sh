@@ -41,14 +41,19 @@ sleep 30
 echo "📊 Service Status:"
 docker-compose ps
 
+# Get external IP and domain
+EXTERNAL_IP=$(curl -s https://api.ipify.org || echo "YOUR_VM_IP")
+DOMAIN="pentorasecbeta.mywire.org"
+
 echo ""
 echo "🎉 Quick fix complete!"
 echo ""
 echo "📋 Access URLs:"
-echo "  🌐 Frontend: http://localhost (or your VM IP)"
-echo "  🔧 API: http://localhost:8001"
-echo "  ❤️ Health: http://localhost:8001/health"
-echo "  🗄️ phpMyAdmin: http://localhost:8080"
+echo "  🌐 Frontend: https://$DOMAIN"
+echo "  🔧 API: https://$DOMAIN/api"
+echo "  ❤️ Health: https://$DOMAIN/health"
+echo "  🗄️ phpMyAdmin: https://$DOMAIN/phpmyadmin"
+echo "  🖥️ Backend Direct: http://$EXTERNAL_IP:8001"
 echo ""
-echo "⚠️ Note: Using self-signed certificates. For production, run:"
-echo "  ./init-letsencrypt.sh -d your-domain.com -e your-email@domain.com"
+echo "⚠️ Note: Using self-signed certificates. For production SSL, run:"
+echo "  ./init-letsencrypt.sh -d $DOMAIN -e admin@$DOMAIN"
