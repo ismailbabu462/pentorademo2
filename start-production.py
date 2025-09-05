@@ -175,13 +175,13 @@ class ProductionManager:
             
             # Stop any existing services
             subprocess.run([
-                'docker-compose', '-f', 'docker-compose.prod.yml', 
+                'docker', 'compose', '-f', 'docker-compose.prod.yml', 
                 '--env-file', 'production.env', 'down', '--remove-orphans'
             ], cwd=self.project_root, check=False)
             
             # Start services
             result = subprocess.run([
-                'docker-compose', '-f', 'docker-compose.prod.yml',
+                'docker', 'compose', '-f', 'docker-compose.prod.yml',
                 '--env-file', 'production.env', 'up', '-d'
             ], cwd=self.project_root, capture_output=True, text=True)
             
@@ -287,11 +287,11 @@ class ProductionManager:
         
         while True:
             try:
-                # Check Docker services
-                result = subprocess.run([
-                    'docker-compose', '-f', 'docker-compose.prod.yml',
-                    '--env-file', 'production.env', 'ps', '--format', 'json'
-                ], cwd=self.project_root, capture_output=True, text=True)
+                            # Check Docker services
+            result = subprocess.run([
+                'docker', 'compose', '-f', 'docker-compose.prod.yml',
+                '--env-file', 'production.env', 'ps', '--format', 'json'
+            ], cwd=self.project_root, capture_output=True, text=True)
                 
                 if result.returncode == 0:
                     services = json.loads(result.stdout)
@@ -327,7 +327,7 @@ class ProductionManager:
         # Stop Docker services
         try:
             subprocess.run([
-                'docker-compose', '-f', 'docker-compose.prod.yml',
+                'docker', 'compose', '-f', 'docker-compose.prod.yml',
                 '--env-file', 'production.env', 'down', '--remove-orphans'
             ], cwd=self.project_root, check=False)
             self.log_status('docker', 'stopped', 'Docker services stopped')
@@ -355,7 +355,7 @@ class ProductionManager:
         # Docker services status
         try:
             result = subprocess.run([
-                'docker-compose', '-f', 'docker-compose.prod.yml',
+                'docker', 'compose', '-f', 'docker-compose.prod.yml',
                 '--env-file', 'production.env', 'ps'
             ], cwd=self.project_root, capture_output=True, text=True)
             

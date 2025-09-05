@@ -8,11 +8,11 @@ echo "=================================="
 
 # Stop any running containers
 echo "🛑 Stopping existing containers..."
-docker-compose -f docker-compose.dev.yml down --remove-orphans 2>/dev/null || true
+docker compose -f docker-compose.dev.yml down --remove-orphans 2>/dev/null || true
 
 # Start development services
 echo "🚀 Starting development services..."
-docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # Wait for services to start
 echo "⏳ Waiting for services to start..."
@@ -20,7 +20,7 @@ sleep 30
 
 # Check status
 echo "📊 Service Status:"
-docker-compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.dev.yml ps
 
 # Get external IP and domain
 EXTERNAL_IP=$(curl -s https://api.ipify.org || echo "YOUR_VM_IP")
@@ -41,6 +41,6 @@ echo "  🌐 Frontend: https://$DOMAIN"
 echo "  🔧 API: https://$DOMAIN/api"
 echo ""
 echo "🔧 Useful Commands:"
-echo "  View logs: docker-compose -f docker-compose.dev.yml logs"
-echo "  Stop all: docker-compose -f docker-compose.dev.yml down"
+echo "  View logs: docker compose -f docker-compose.dev.yml logs"
+echo "  Stop all: docker compose -f docker-compose.dev.yml down"
 echo "  Restart: ./start-dev.sh"

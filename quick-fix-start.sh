@@ -8,7 +8,7 @@ echo "========================="
 
 # Stop any running containers
 echo "🛑 Stopping existing containers..."
-docker-compose down --remove-orphans 2>/dev/null || true
+docker compose down --remove-orphans 2>/dev/null || true
 
 # Generate self-signed SSL certificate
 echo "🔒 Generating self-signed SSL certificate..."
@@ -31,7 +31,7 @@ fi
 
 # Start services without certbot
 echo "🚀 Starting services (without certbot)..."
-docker-compose up -d mysql redis ollama backend frontend nginx
+docker compose up -d mysql redis ollama backend frontend nginx
 
 # Wait for services to start
 echo "⏳ Waiting for services to start..."
@@ -39,7 +39,7 @@ sleep 30
 
 # Check status
 echo "📊 Service Status:"
-docker-compose ps
+docker compose ps
 
 # Get external IP and domain
 EXTERNAL_IP=$(curl -s https://api.ipify.org || echo "YOUR_VM_IP")

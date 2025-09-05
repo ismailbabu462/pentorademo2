@@ -74,7 +74,7 @@ def main():
     
     # Stop any existing services
     print("\n🛑 Stopping existing services...")
-    run_command("docker-compose -f docker-compose.prod.yml --env-file production.env down --remove-orphans", 
+    run_command("docker compose -f docker-compose.prod.yml --env-file production.env down --remove-orphans", 
                 "Stopping existing services")
     
     # Clean up Docker
@@ -83,7 +83,7 @@ def main():
     
     # Start services
     print("\n🚀 Starting production services...")
-    if not run_command("docker-compose -f docker-compose.prod.yml --env-file production.env up -d", 
+    if not run_command("docker compose -f docker-compose.prod.yml --env-file production.env up -d", 
                        "Starting Docker services"):
         print("❌ Failed to start Docker services")
         return False
@@ -94,7 +94,7 @@ def main():
     
     # Check service status
     print("\n📊 Checking service status...")
-    run_command("docker-compose -f docker-compose.prod.yml --env-file production.env ps", 
+    run_command("docker compose -f docker-compose.prod.yml --env-file production.env ps", 
                 "Service status")
     
     # Start Desktop Agent
@@ -129,8 +129,8 @@ def main():
     print(f"  🔧 Backend Direct: http://{external_ip}:8001")
     
     print("\n🔧 Useful Commands:")
-    print("  View logs: docker-compose -f docker-compose.prod.yml --env-file production.env logs")
-    print("  Stop all: docker-compose -f docker-compose.prod.yml --env-file production.env down")
+    print("  View logs: docker compose -f docker-compose.prod.yml --env-file production.env logs")
+    print("  Stop all: docker compose -f docker-compose.prod.yml --env-file production.env down")
     print("  Restart: python quick-start.py")
     
     print("\n⚠️ Important:")
