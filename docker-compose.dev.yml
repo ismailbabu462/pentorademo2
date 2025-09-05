@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: pentest_mysql_dev
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword123
+      - MYSQL_DATABASE=pentest_suite
+      - MYSQL_USER=pentest_user
+      - MYSQL_PASSWORD=pentest_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+    networks:
+      - pentest_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: pentest_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - pentest_network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Ollama AI Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pentest_ollama_dev
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data_dev:/root/.ollama
+    networks:
+      - pentest_network
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pentest_backend_dev
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=mysql+pymysql://pentest_user:pentest_password@mysql:3306/pentest_suite
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3010,http://localhost
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.1
+      - LOG_LEVEL=INFO
+      - DEBUG=true
+      - ENVIRONMENT=development
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - pentest_network
+    volumes:
+      - backend_data_dev:/app
+    command: python -m uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+
+  # Frontend Development Server
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: pentest_frontend_dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8001
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    networks:
+      - pentest_network
+    volumes:
+      - frontend_data_dev:/app
+      - /app/node_modules
+
+  # phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: pentest_phpmyadmin_dev
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_USER=root
+      - PMA_PASSWORD=rootpassword123
+    depends_on:
+      - mysql
+    networks:
+      - pentest_network
+
+volumes:
+  mysql_data_dev:
+  redis_data_dev:
+  ollama_data_dev:
+  backend_data_dev:
+  frontend_data_dev:
+
+networks:
+  pentest_network:
+    driver: bridge

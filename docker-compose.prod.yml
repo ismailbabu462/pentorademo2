@@ -182,7 +182,9 @@ services:
       - ./certbot/logs:/var/log/letsencrypt
     networks:
       - pentest_network
-    command: certonly --webroot --webroot-path=/var/www/certbot --email admin@pentorasecbeta.mywire.org --agree-tos --no-eff-email -d pentorasecbeta.mywire.org
+    command: echo "Certbot disabled - using self-signed certificates"
+    profiles:
+      - ssl
 
 volumes:
   mysql_data:
