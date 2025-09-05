@@ -56,16 +56,16 @@ async def get_current_active_user(
     """
     # SECURITY: Remove debug logging in production
     if os.getenv("DEBUG", "false").lower() == "true":
-        print(f"🔐 Auth Debug: Authorization header present: {bool(authorization)}")
+        logger.debug(f"Auth: Authorization header present: {bool(authorization)}")
     
     if not authorization or not authorization.startswith("Bearer "):
         if os.getenv("DEBUG", "false").lower() == "true":
-            print("❌ Auth Debug: No valid authorization header")
+            logger.debug("Auth: No valid authorization header")
         raise HTTPException(status_code=401, detail="Authorization token required")
     
     token = authorization.split(" ", 1)[1]
     if os.getenv("DEBUG", "false").lower() == "true":
-        print(f"🔐 Auth Debug: Token length: {len(token)}")
+        logger.debug(f"Auth: Token length: {len(token)}")
     
     try:
         from jose import JWTError, jwt
@@ -76,7 +76,7 @@ async def get_current_active_user(
         
         if not user_id:
             if os.getenv("DEBUG", "false").lower() == "true":
-                print("❌ Auth Debug: No user ID in token")
+                logger.debug("Auth: No user ID in token")
             raise HTTPException(status_code=401, detail="Invalid token")
         
         # Get user from database
@@ -84,12 +84,12 @@ async def get_current_active_user(
         user_data = db.query(DBUser).filter(DBUser.id == user_id).first()
         if not user_data:
             if os.getenv("DEBUG", "false").lower() == "true":
-                print(f"❌ Auth Debug: User not found in database")
+                logger.debug("Auth: User not found in database")
             raise HTTPException(status_code=401, detail="User not found")
         
         if os.getenv("DEBUG", "false").lower() == "true":
             safe_username = str(user_data.username)[:20] + "..." if len(str(user_data.username)) > 20 else str(user_data.username)
-            print(f"✅ Auth Debug: User authenticated successfully: {safe_username}")
+            logger.debug(f"Auth: User authenticated successfully: {safe_username}")
         return User({
             'id': user_data.id,
             'username': user_data.username,
@@ -101,7 +101,7 @@ async def get_current_active_user(
         
     except JWTError as e:
         if os.getenv("DEBUG", "false").lower() == "true":
-            print(f"❌ Auth Debug: JWT Error: {e}")
+            logger.debug(f"Auth: JWT Error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def check_project_limit(

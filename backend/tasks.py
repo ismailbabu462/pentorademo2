@@ -206,73 +206,73 @@ def enrich_vulnerability(self, vulnerability_id: str) -> Dict[str, str]:
         )
         
         # Get database session
-        db = next(get_db())
-        
-        # Fetch vulnerability from database
-        vulnerability = db.query(DBVulnerability).filter(
-            DBVulnerability.id == vulnerability_id
-        ).first()
-        
-        if not vulnerability:
-            logger.error(f"Vulnerability {vulnerability_id} not found")
-            return {"error": "Vulnerability not found"}
-        
-        # Update progress
-        self.update_state(
-            state="PROGRESS",
-            meta={"status": "Searching for vulnerability information...", "progress": 25}
-        )
-        
-        # Create search query
-        search_query = f'"{vulnerability.title}" exploit tutorial code vulnerability'
-        logger.info(f"Searching for: {search_query}")
-        
-        # Get Google search results
-        search_results = get_google_search_results(search_query, num_results=5)
-        
-        # Update progress
-        self.update_state(
-            state="PROGRESS",
-            meta={"status": "Scraping web content...", "progress": 50}
-        )
-        
-        # Scrape content from search results
-        context_text = ""
-        for i, result in enumerate(search_results):
-            if result.get("link"):
-                logger.info(f"Scraping result {i+1}: {result['link']}")
-                content = scrape_webpage_content(result["link"])
-                if content:
+        from database import DatabaseContext
+        with DatabaseContext() as db:
+            # Fetch vulnerability from database
+            vulnerability = db.query(DBVulnerability).filter(
+                DBVulnerability.id == vulnerability_id
+            ).first()
+            
+            if not vulnerability:
+                logger.error(f"Vulnerability {vulnerability_id} not found")
+                return {"error": "Vulnerability not found"}
+            
+            # Update progress
+            self.update_state(
+                state="PROGRESS",
+                meta={"status": "Searching for vulnerability information...", "progress": 25}
+            )
+            
+            # Create search query
+            search_query = f'"{vulnerability.title}" exploit tutorial code vulnerability'
+            logger.info(f"Searching for: {search_query}")
+            
+            # Get Google search results
+            search_results = get_google_search_results(search_query, num_results=5)
+            
+            # Update progress
+            self.update_state(
+                state="PROGRESS",
+                meta={"status": "Scraping web content...", "progress": 50}
+            )
+            
+            # Scrape content from search results
+            context_text = ""
+            for i, result in enumerate(search_results):
+                if result.get("link"):
+                    logger.info(f"Scraping result {i+1}: {result['link']}")
+                    content = scrape_webpage_content(result["link"])
+                    if content:
+                        context_text += f"\n\n--- Source {i+1}: {result['title']} ---\n"
+                        context_text += f"URL: {result['link']}\n"
+                        context_text += f"Content: {content}\n"
+            
+            # If no content was scraped, use search snippets
+            if not context_text.strip():
+                logger.warning("No content scraped, using search snippets")
+                for i, result in enumerate(search_results):
                     context_text += f"\n\n--- Source {i+1}: {result['title']} ---\n"
                     context_text += f"URL: {result['link']}\n"
-                    context_text += f"Content: {content}\n"
-        
-        # If no content was scraped, use search snippets
-        if not context_text.strip():
-            logger.warning("No content scraped, using search snippets")
-            for i, result in enumerate(search_results):
-                context_text += f"\n\n--- Source {i+1}: {result['title']} ---\n"
-                context_text += f"URL: {result['link']}\n"
-                context_text += f"Snippet: {result.get('snippet', '')}\n"
-        
-        # Update progress
-        self.update_state(
-            state="PROGRESS",
-            meta={"status": "Analyzing with AI...", "progress": 75}
-        )
-        
-        # Analyze with AI
-        ai_analysis = analyze_with_ai(vulnerability.title, context_text)
-        
-        # Update progress
-        self.update_state(
-            state="PROGRESS",
-            meta={"status": "Saving analysis to database...", "progress": 90}
-        )
-        
-        # Save AI analysis to database
-        vulnerability.ai_analysis = ai_analysis
-        db.commit()
+                    context_text += f"Snippet: {result.get('snippet', '')}\n"
+            
+            # Update progress
+            self.update_state(
+                state="PROGRESS",
+                meta={"status": "Analyzing with AI...", "progress": 75}
+            )
+            
+            # Analyze with AI
+            ai_analysis = analyze_with_ai(vulnerability.title, context_text)
+            
+            # Update progress
+            self.update_state(
+                state="PROGRESS",
+                meta={"status": "Saving analysis to database...", "progress": 90}
+            )
+            
+            # Save AI analysis to database
+            vulnerability.ai_analysis = ai_analysis
+            # DatabaseContext will handle commit automatically
         
         logger.info(f"Successfully enriched vulnerability {vulnerability_id}")
         
@@ -301,8 +301,7 @@ def enrich_vulnerability(self, vulnerability_id: str) -> Dict[str, str]:
         return {"error": str(e)}
     
     finally:
-        if 'db' in locals():
-            db.close()
+        pass  # DatabaseContext handles cleanup automatically
 
 @celery_app.task
 def test_task() -> str:

@@ -56,7 +56,7 @@ const ToolsPage = () => {
       ws.onopen = () => {
         setWsConnected(true);
         toast.success('Desktop Agent connected');
-        console.log('WebSocket connected');
+        // WebSocket connected
       };
       
       ws.onmessage = (event) => {
@@ -71,7 +71,7 @@ const ToolsPage = () => {
       ws.onclose = () => {
         setWsConnected(false);
         toast.error('Desktop Agent disconnected');
-        console.log('WebSocket disconnected');
+        // WebSocket disconnected
       };
       
       ws.onerror = (error) => {
@@ -87,7 +87,7 @@ const ToolsPage = () => {
   const handleWebSocketMessage = (data) => {
     switch (data.type) {
       case 'welcome':
-        console.log('Desktop Agent welcome:', data.message);
+        // Desktop Agent welcome message received
         break;
       case 'start':
         setRunningTool(data.tool);
@@ -114,7 +114,7 @@ const ToolsPage = () => {
         toast.error(data.message);
         break;
       default:
-        console.log('Unknown WebSocket message type:', data.type);
+        // Unknown WebSocket message type
     }
   };
   
@@ -129,9 +129,7 @@ const ToolsPage = () => {
   const fetchProjects = async () => {
     setLoadingProjects(true);
     try {
-      console.log('🔍 ToolsPage: Fetching projects...');
       const response = await api.get('/projects');
-      console.log('🔍 ToolsPage: Projects response:', response.data);
       setProjects(response.data || []);
     } catch (error) {
       console.error('❌ ToolsPage: Failed to fetch projects:', error);
@@ -145,7 +143,7 @@ const ToolsPage = () => {
   // Save tool output to project
   const saveToolOutputToProject = async (toolName, target, output) => {
     if (!selectedProjectId) {
-      console.log('No project selected, skipping save');
+      // No project selected, skipping save
       return;
     }
 
@@ -158,7 +156,7 @@ const ToolsPage = () => {
         project_id: selectedProjectId
       });
 
-      console.log('Tool output saved to project:', response);
+      // Tool output saved to project
       toast.success(`Scan results saved to project`);
     } catch (error) {
       console.error('Failed to save tool output:', error);
@@ -214,7 +212,7 @@ const ToolsPage = () => {
         project_id: selectedProjectId
       });
 
-      console.log('Current output saved to project:', response);
+      // Current output saved to project
       toast.success(`Tarama sonuçları projeye kaydedildi`);
       
       // Optionally clear the output after saving

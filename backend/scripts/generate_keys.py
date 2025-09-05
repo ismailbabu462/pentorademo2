@@ -56,11 +56,11 @@ async def main():
 
     db = SessionLocal()
 
-    print(f"Generating {args.count} keys for tier={args.tier}, duration={args.duration}d")
-    print("Raw keys (store securely; not saved in DB):\n")
+    logger.info(f"Generating {args.count} keys for tier={args.tier}, duration={args.duration}d")
+    logger.info("Raw keys (store securely; not saved in DB):\n")
     for _ in range(args.count):
         raw_key = await create_license_key(db, args.tier, args.duration, store_raw=False)
-        print(raw_key)
+        logger.info(raw_key)
 
     db.close()
 

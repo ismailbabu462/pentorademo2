@@ -1,17 +1,57 @@
 from sqlalchemy import create_engine, Column, String, DateTime, Text, Boolean, Integer, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.exc import OperationalError
 from datetime import datetime, timezone
 import uuid
+import time
+import logging
 
 from config import DATABASE_URL
 
-# Create SQLAlchemy engine
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    # For MySQL and other databases
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
+logger = logging.getLogger(__name__)
+
+def create_database_engine():
+    """Create database engine with retry mechanism"""
+    max_retries = 30  # 30 retries
+    retry_delay = 2   # 2 seconds between retries
+    
+    for attempt in range(max_retries):
+        try:
+            if DATABASE_URL.startswith("sqlite"):
+                return create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+            else:
+                # For MySQL and other databases - with connection pool settings from config
+                from config import DATABASE_POOL_CONFIG
+                engine = create_engine(
+                    DATABASE_URL,
+                    **DATABASE_POOL_CONFIG,
+                    echo=False,  # Disable SQL logging for production
+                    echo_pool=False  # Disable pool logging
+                )
+                
+                # Test the connection with timeout
+                with engine.connect() as conn:
+                    from sqlalchemy import text
+                    conn.execute(text("SELECT 1"))
+                
+                logger.info("✅ Database connection established successfully")
+                return engine
+                
+        except OperationalError as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"⚠️ Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.info(f"🔄 Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"❌ Failed to connect to database after {max_retries} attempts: {e}")
+                raise
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during database connection: {e}")
+            raise
+
+# Create SQLAlchemy engine with retry mechanism
+engine = create_database_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -32,6 +72,8 @@ class User(Base):
     # Relationships
     projects = relationship("Project", back_populates="user")
     notes = relationship("Note", back_populates="user")
+    tool_outputs = relationship("ToolOutput", back_populates="user")
+    vulnerabilities = relationship("Vulnerability", back_populates="user")
 
 class Project(Base):
     __tablename__ = "projects"
@@ -51,6 +93,8 @@ class Project(Base):
     user = relationship("User", back_populates="projects")
     targets = relationship("Target", back_populates="project")
     notes = relationship("Note", back_populates="project")
+    tool_outputs = relationship("ToolOutput", back_populates="project")
+    vulnerabilities = relationship("Vulnerability", back_populates="project")
 
 class Target(Base):
     __tablename__ = "targets"
@@ -109,8 +153,8 @@ class ToolOutput(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Relationships
-    project = relationship("Project")
-    user = relationship("User")
+    project = relationship("Project", back_populates="tool_outputs")
+    user = relationship("User", back_populates="tool_outputs")
 
 class Vulnerability(Base):
     __tablename__ = "vulnerabilities"
@@ -127,8 +171,8 @@ class Vulnerability(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
-    project = relationship("Project")
-    user = relationship("User")
+    project = relationship("Project", back_populates="vulnerabilities")
+    user = relationship("User", back_populates="vulnerabilities")
 
 # Create all tables
 def create_tables():
@@ -136,14 +180,58 @@ def create_tables():
 
 # Dependency to get database session
 def get_db():
+    # Lazy database initialization
+    try:
+        # Try to create tables if they don't exist
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning(f"⚠️ Database tables creation failed: {e}")
+        # Continue anyway, tables might already exist
+    
     db = SessionLocal()
     try:
         yield db
+    except Exception as e:
+        logger.error(f"❌ Database session error: {e}")
+        db.rollback()
+        raise
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing database session: {e}")
+
+# Database context manager for safe operations
+class DatabaseContext:
+    def __init__(self):
+        self.db = None
+    
+    def __enter__(self):
+        self.db = SessionLocal()
+        return self.db
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.db:
+            try:
+                if exc_type:
+                    self.db.rollback()
+                else:
+                    self.db.commit()
+            except Exception as e:
+                logger.error(f"❌ Error in database context: {e}")
+                self.db.rollback()
+            finally:
+                try:
+                    self.db.close()
+                except Exception as e:
+                    logger.warning(f"⚠️ Error closing database session: {e}")
 
 # Initialize database
 def init_db():
-    create_tables()
-    db_type = "MySQL" if DATABASE_URL.startswith("mysql") else "SQLite"
-    print(f"✅ {db_type} database initialized successfully")
+    try:
+        create_tables()
+        db_type = "MySQL" if DATABASE_URL.startswith("mysql") else "SQLite"
+        logger.info(f"✅ {db_type} database initialized successfully")
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        raise

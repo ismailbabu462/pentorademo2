@@ -39,10 +39,11 @@ class ToolOutputRequest(BaseModel):
         if not v or not v.strip():
             raise ValueError('Target cannot be empty')
         
-        # Basic validation for common targets
+        # Basic validation for common targets using configuration
+        from config import TOOL_CONFIG
         target = v.strip()
-        if len(target) > 500:
-            raise ValueError('Target too long')
+        if len(target) > TOOL_CONFIG["max_target_length"]:
+            raise ValueError(f'Target too long (max {TOOL_CONFIG["max_target_length"]} characters)')
         
         # Check for potentially dangerous content
         dangerous_patterns = [r'<script', r'javascript:', r'data:', r'vbscript:']
@@ -58,9 +59,10 @@ class ToolOutputRequest(BaseModel):
         if not v or not v.strip():
             raise ValueError('Output cannot be empty')
         
-        # Limit output size
-        if len(v) > 100000:
-            raise ValueError('Output too large (max 100KB)')
+        # Limit output size using configuration
+        from config import TOOL_CONFIG
+        if len(v) > TOOL_CONFIG["max_output_size"]:
+            raise ValueError(f'Output too large (max {TOOL_CONFIG["max_output_size"]} bytes)')
         
         return v.strip()
     
@@ -169,22 +171,53 @@ async def save_tool_output(
                     detail="Project not found or access denied"
                 )
         
-        # Insert tool output with parameterized query
-        insert_query = text("""
-            INSERT INTO tool_outputs (id, tool_name, target, output, status, project_id, user_id, created_at)
-            VALUES (:id, :tool_name, :target, :output, :status, :project_id, :user_id, :created_at)
+        # Check for duplicate tool output (same tool, target, user)
+        duplicate_check_query = text("""
+            SELECT id FROM tool_outputs 
+            WHERE tool_name = :tool_name AND target = :target AND user_id = :user_id
+            ORDER BY created_at DESC
+            LIMIT 1
         """)
         
-        db.execute(insert_query, {
-            "id": tool_output_id,
+        duplicate_result = db.execute(duplicate_check_query, {
             "tool_name": request.tool_name,
             "target": request.target,
-            "output": request.output,
-            "status": request.status,
-            "project_id": request.project_id,
-            "user_id": current_user.id,
-            "created_at": datetime.now().isoformat()
-        })
+            "user_id": current_user.id
+        }).fetchone()
+        
+        # If duplicate found within last 5 minutes, update instead of creating new
+        if duplicate_result:
+            update_query = text("""
+                UPDATE tool_outputs 
+                SET output = :output, status = :status, created_at = :created_at
+                WHERE id = :id
+            """)
+            
+            db.execute(update_query, {
+                "output": request.output,
+                "status": request.status,
+                "created_at": datetime.now().isoformat(),
+                "id": duplicate_result.id
+            })
+            
+            tool_output_id = duplicate_result.id
+        else:
+            # Insert new tool output with parameterized query
+            insert_query = text("""
+                INSERT INTO tool_outputs (id, tool_name, target, output, status, project_id, user_id, created_at)
+                VALUES (:id, :tool_name, :target, :output, :status, :project_id, :user_id, :created_at)
+            """)
+            
+            db.execute(insert_query, {
+                "id": tool_output_id,
+                "tool_name": request.tool_name,
+                "target": request.target,
+                "output": request.output,
+                "status": request.status,
+                "project_id": request.project_id,
+                "user_id": current_user.id,
+                "created_at": datetime.now().isoformat()
+            })
         
         # Commit transaction
         db.commit()

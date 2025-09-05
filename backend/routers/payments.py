@@ -77,43 +77,56 @@ async def lemonsqueezy_webhook(
     try:
         # Get raw body first
         body = await request.body()
-        print(f"Webhook received - Body length: {len(body)}")
-        print(f"Webhook received - Headers: {dict(request.headers)}")
-        print(f"Webhook received from: {request.client.host if hasattr(request.client, 'host') else 'unknown'}")
         
-        # Get webhook secret from environment
-        webhook_secret = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
+        # Log webhook details (sanitized for security)
+        client_ip = getattr(request.client, 'host', 'unknown') if request.client else 'unknown'
+        logger.info(f"Webhook received - Body length: {len(body)}, From: {client_ip}")
+        
+        # Get webhook secret from configuration
+        from config import LEMONSQUEEZY_WEBHOOK_SECRET
+        webhook_secret = LEMONSQUEEZY_WEBHOOK_SECRET
         if not webhook_secret:
-            print("WARNING: LEMONSQUEEZY_WEBHOOK_SECRET not configured, skipping signature verification")
+            logger.warning("LEMONSQUEEZY_WEBHOOK_SECRET not configured, skipping signature verification")
         else:
             # Verify signature if secret is configured
             if x_signature and not verify_lemonsqueezy_signature(body, x_signature, webhook_secret):
-                print(f"Invalid signature: {x_signature}")
+                logger.error("Invalid webhook signature")
                 raise HTTPException(status_code=401, detail="Invalid signature")
             else:
-                print("Signature verification passed or skipped")
+                logger.info("Signature verification passed or skipped")
         
-        # Parse webhook data
+        # Parse webhook data with size limit
+        from config import MAX_REQUEST_SIZE
+        if len(body) > MAX_REQUEST_SIZE:
+            raise HTTPException(status_code=413, detail="Payload too large")
+            
         webhook_data = json.loads(body.decode('utf-8'))
-        print(f"Webhook data: {json.dumps(webhook_data, indent=2)}")
-        
         event_type = webhook_data.get('meta', {}).get('event_name')
         
-        print(f"Lemon Squeezy webhook received: {event_type}")
+        logger.info(f"Lemon Squeezy webhook received: {event_type}")
         
         # Handle different event types
         if event_type in ['subscription_created', 'order_created']:
-            print("Processing payment success...")
+            logger.info("Processing payment success...")
             await handle_payment_success(webhook_data, db)
         else:
-            print(f"Unhandled event type: {event_type}")
+            logger.info(f"Unhandled event type: {event_type}")
         
         return {"status": "success"}
         
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error: {str(e)}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        print(f"Webhook error: {str(e)}")
+        logger.error(f"Webhook error: {str(e)}")
+        # Rollback any database changes
+        try:
+            db.rollback()
+        except:
+            pass
         raise HTTPException(status_code=500, detail="Webhook processing failed")
 
 
@@ -129,7 +142,14 @@ async def handle_payment_success(webhook_data: dict, db: Session):
         # Get user email from webhook data
         user_email = attributes.get('user_email') or attributes.get('customer_email')
         if not user_email:
-            print("No user email found in webhook data")
+            logger.warning("No user email found in webhook data")
+            return
+        
+        # Validate email format
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, user_email):
+            logger.error(f"Invalid email format: {user_email}")
             return
         
         # Map Lemon Squeezy product to our tier
@@ -148,11 +168,15 @@ async def handle_payment_success(webhook_data: dict, db: Session):
         variant_id = attributes.get('variant_id')
         duration_days = 365 if 'yearly' in str(variant_id).lower() else 30
         
+        # Validate duration
+        if duration_days not in [30, 365]:
+            duration_days = 30
+        
         # Find user by email
         from database import User
         user = db.query(User).filter(User.email == user_email).first()
         if not user:
-            print(f"User not found for email: {user_email}")
+            logger.warning(f"User not found for email: {user_email}")
             return
         
         # Create license key
@@ -169,10 +193,15 @@ async def handle_payment_success(webhook_data: dict, db: Session):
             store_raw=True,
         )
         
-        print(f"License key created for user {user_email}: {tier} tier, {duration_days} days")
+        logger.info(f"License key created for user {user_email}: {tier} tier, {duration_days} days")
         
     except Exception as e:
-        print(f"Error handling payment success: {str(e)}")
+        logger.error(f"Error handling payment success: {str(e)}")
+        # Rollback database changes
+        try:
+            db.rollback()
+        except:
+            pass
         raise
 
 

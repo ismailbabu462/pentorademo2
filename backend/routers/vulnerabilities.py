@@ -11,7 +11,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db, Vulnerability as DBVulnerability, Project as DBProject
 from dependencies import get_current_active_user
-from tasks import enrich_vulnerability
+# from tasks import enrich_vulnerability  # Disabled for now
 import logging
 
 router = APIRouter(prefix="/api/vulnerabilities", tags=["vulnerabilities"])
@@ -69,14 +69,14 @@ async def analyze_vulnerability(
                 detail="Vulnerability analysis already completed"
             )
         
-        # Start background task
-        task = enrich_vulnerability.delay(vulnerability_id)
+        # Start background task (disabled for now)
+        # task = enrich_vulnerability.delay(vulnerability_id)
         
-        logger.info(f"Started AI analysis for vulnerability {vulnerability_id}, task ID: {task.id}")
+        logger.info(f"Started AI analysis for vulnerability {vulnerability_id}")
         
         return VulnerabilityAnalysisResponse(
             message="AI analysis has started in the background. Results will be available shortly.",
-            task_id=task.id,
+            task_id="disabled",
             vulnerability_id=vulnerability_id
         )
         

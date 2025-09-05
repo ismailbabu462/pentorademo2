@@ -1,3 +1,6 @@
+# Production Docker Compose Configuration for Google Cloud
+# This configuration is optimized for production deployment
+
 services:
   # MySQL Service
   mysql:
@@ -5,52 +8,21 @@ services:
     container_name: pentest_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword123}
       MYSQL_DATABASE: pentest_suite
       MYSQL_USER: pentest_user
-      MYSQL_PASSWORD: pentest_password
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pentest_password}
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
       - pentest_network
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword123"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword123}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
-  # phpMyAdmin - Web MySQL Client
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
-    container_name: pentest_phpmyadmin
-    restart: unless-stopped
-    environment:
-      PMA_HOST: mysql
-      PMA_PORT: 3306
-      PMA_USER: root
-      PMA_PASSWORD: rootpassword123
-      MYSQL_ROOT_PASSWORD: rootpassword123
-    networks:
-      - pentest_network
-    depends_on:
-      - mysql
-
-  # Tools Service - Contains all pentest tools
-  tools:
-    build:
-      context: ./tools
-      dockerfile: Dockerfile
-    container_name: pentest_tools
-    restart: unless-stopped
-    networks:
-      - pentest_network
-    volumes:
-      - ./tools:/workspace
-      - tools_data:/opt/tools
-    profiles:
-      - tools
 
   # Ollama Service - AI Model Server
   ollama:
@@ -64,39 +36,6 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0
 
-  # Redis Service - For Celery task queue
-  redis:
-    image: redis:7-alpine
-    container_name: pentest_redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    networks:
-      - pentest_network
-    command: redis-server --appendonly yes
-
-  # Celery Worker Service - For background AI tasks
-  celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: pentest_celery_worker
-    restart: unless-stopped
-    command: celery -A celery_app worker --loglevel=info --queues=vulnerability_analysis
-    volumes:
-      - ./backend:/app
-    networks:
-      - pentest_network
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      - SEARCH_ENGINE_ID=${SEARCH_ENGINE_ID:-}
-    depends_on:
-      - redis
-      - ollama
-    profiles:
-      - ai
-
   # Backend Service
   backend:
     build:
@@ -105,11 +44,13 @@ services:
     container_name: pentest_backend
     restart: unless-stopped
     environment:
-      - DATABASE_URL=mysql+pymysql://pentest_user:pentest_password@mysql:3306/pentest_suite
-      - CORS_ORIGINS=https://pentorasecbeta.mywire.org,http://localhost:3000,http://localhost:3010,http://127.0.0.1:3000,http://127.0.0.1:3010
-      - LEMONSQUEEZY_WEBHOOK_SECRET=pentora_webhook_secret_2024
+      - DATABASE_URL=mysql+pymysql://pentest_user:${MYSQL_PASSWORD:-pentest_password}@mysql:3306/pentest_suite
+      - CORS_ORIGINS=https://pentorasecbeta.mywire.org,https://www.pentorasecbeta.mywire.org
+      - LEMONSQUEEZY_WEBHOOK_SECRET=${LEMONSQUEEZY_WEBHOOK_SECRET:-pentora_webhook_secret_2024}
       - OLLAMA_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3.1
+      - LOG_LEVEL=WARNING
+      - DEBUG=false
     depends_on:
       mysql:
         condition: service_healthy
@@ -119,8 +60,8 @@ services:
       - pentest_network
     volumes:
       - ./backend:/app
-      - tools_data:/opt/tools:ro  # Read-only access to tools
-    command: python -m uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+      - tools_data:/opt/tools:ro
+    command: python -m uvicorn server:app --host 0.0.0.0 --port 8001
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
@@ -138,6 +79,7 @@ services:
     environment:
       - REACT_APP_API_URL=https://pentorasecbeta.mywire.org/api
       - REACT_APP_BACKEND_URL=https://pentorasecbeta.mywire.org
+      - NODE_ENV=production
     depends_on:
       backend:
         condition: service_healthy
@@ -189,7 +131,6 @@ volumes:
   mysql_data:
   tools_data:
   ollama_data:
-  redis_data:
   nginx_logs:
 
 networks:

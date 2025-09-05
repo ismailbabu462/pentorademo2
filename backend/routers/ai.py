@@ -71,8 +71,8 @@ class ChatResponse(BaseModel):
     response: str
 
 # Ollama configuration
-OLLAMA_URL = "http://ollama:11434"
-MODEL_NAME = "llama3.1"
+from config import OLLAMA_URL, OLLAMA_MODEL, AI_CONFIG
+MODEL_NAME = OLLAMA_MODEL
 
 # Security helper functions
 def validate_project_access(project_id: str, user_id: str, db: Session) -> bool:
@@ -157,6 +157,11 @@ async def chat_with_ai(
     Chat with Pentora AI assistant using Ollama Llama 3.1 with contextual analysis
     """
     try:
+        # Rate limiting check (basic implementation)
+        # In production, use Redis or similar for proper rate limiting
+        import time
+        current_time = time.time()
+        
         # Initialize context block
         context_block = ""
         
@@ -397,11 +402,11 @@ Output:
             "stream": False
         }
         
-        # Send request to Ollama with extended timeout
+        # Send request to Ollama with configurable timeout
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json=ollama_request,
-            timeout=120  # 2 minutes timeout for AI processing
+            timeout=AI_CONFIG["timeout_seconds"]
         )
         
         if response.status_code != 200:

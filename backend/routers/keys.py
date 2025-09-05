@@ -43,17 +43,17 @@ async def get_current_user_id(authorization: Optional[str] = Header(None), db: S
 @router.post("/activate")
 async def activate_key(payload: ActivateRequest, user_id: str = Depends(get_current_user_id), db: Session = Depends(get_db)):
     incoming_key = payload.key.strip()
-    print(f"🔑 License Key Activation Debug: Received key: {incoming_key[:10]}...")
-    print(f"🔑 License Key Activation Debug: Key length: {len(incoming_key)}")
-    print(f"🔑 License Key Activation Debug: User ID: {user_id}")
+    logger.debug(f"License Key Activation: Received key: {incoming_key[:10]}...")
+    logger.debug(f"License Key Activation: Key length: {len(incoming_key)}")
+    logger.debug(f"License Key Activation: User ID: {user_id}")
     
     if not incoming_key or len(incoming_key) < 20:
-        print(f"🔑 License Key Activation Debug: Invalid key format - length: {len(incoming_key)}")
+        logger.debug(f"License Key Activation: Invalid key format - length: {len(incoming_key)}")
         raise HTTPException(status_code=400, detail="Invalid key format")
 
     # Find all unused keys
     unused_keys = db.query(DBLicenseKey).filter(DBLicenseKey.is_used == False).all()
-    print(f"🔑 License Key Activation Debug: Found {len(unused_keys)} unused keys")
+    logger.debug(f"License Key Activation: Found {len(unused_keys)} unused keys")
     matched_key = None
     
     for key in unused_keys:
@@ -62,7 +62,7 @@ async def activate_key(payload: ActivateRequest, user_id: str = Depends(get_curr
             break
 
     if not matched_key:
-        print(f"🔑 License Key Activation Debug: No matching key found")
+        logger.debug("License Key Activation: No matching key found")
         raise HTTPException(status_code=400, detail="Invalid or previously used key")
 
     tier = matched_key.tier or "professional"

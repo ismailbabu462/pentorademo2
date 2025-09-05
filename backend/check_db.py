@@ -6,7 +6,7 @@ cursor = conn.cursor()
 # Get all tables
 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
 tables = cursor.fetchall()
-print('Tables:', [table[0] for table in tables])
+logger.info('Tables:', [table[0] for table in tables])
 
 # Get record counts for each table
 for table in tables:
@@ -17,34 +17,34 @@ for table in tables:
     if table_name in allowed_tables:
         cursor.execute("SELECT COUNT(*) FROM ?", (table_name,))
         count = cursor.fetchone()[0]
-        print(f'{table_name}: {count} records')
+        logger.info(f'{table_name}: {count} records')
     else:
-        print(f'{table_name}: [SKIPPED - Not in whitelist]')
+        logger.info(f'{table_name}: [SKIPPED - Not in whitelist]')
 
 # Get sample data from projects table
 if 'projects' in [table[0] for table in tables]:
     cursor.execute("SELECT id, name, description, user_id, created_at FROM projects")
     projects = cursor.fetchall()
-    print('\nProjects:')
+    logger.info('\nProjects:')
     for project in projects:
-        print(f'  ID: {project[0]}')
-        print(f'  Name: {project[1]}')
-        print(f'  Description: {project[2]}')
-        print(f'  User ID: {project[3]}')
-        print(f'  Created: {project[4]}')
-        print()
+        logger.info(f'  ID: {project[0]}')
+        logger.info(f'  Name: {project[1]}')
+        logger.info(f'  Description: {project[2]}')
+        logger.info(f'  User ID: {project[3]}')
+        logger.info(f'  Created: {project[4]}')
+        logger.info('')
 
 # Get sample data from users table
 if 'users' in [table[0] for table in tables]:
     cursor.execute("SELECT id, username, email, tier, created_at FROM users")
     users = cursor.fetchall()
-    print('Users:')
+    logger.info('Users:')
     for user in users:
-        print(f'  ID: {user[0]}')
-        print(f'  Username: {user[1]}')
-        print(f'  Email: {user[2]}')
-        print(f'  Tier: {user[3]}')
-        print(f'  Created: {user[4]}')
-        print()
+        logger.info(f'  ID: {user[0]}')
+        logger.info(f'  Username: {user[1]}')
+        logger.info(f'  Email: {user[2]}')
+        logger.info(f'  Tier: {user[3]}')
+        logger.info(f'  Created: {user[4]}')
+        logger.info('')
 
 conn.close()

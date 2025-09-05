@@ -34,6 +34,9 @@ def _safe_json_loads(json_str: str, default=None):
         return json.loads(json_str)
     except (json.JSONDecodeError, TypeError, ValueError):
         return default or []
+
+# Import utility functions
+from utils.validation import sanitize_input, validate_uuid
 import os
 import logging
 from pathlib import Path
@@ -54,8 +57,13 @@ load_dotenv(ROOT_DIR / '.env')
 from config import CORS_ORIGINS
 from database import init_db, get_db, Project as DBProject, User as DBUser, Target as DBTarget, Note as DBNote, Vulnerability as DBVulnerability
 
-# Initialize SQLite database
-init_db()
+# Initialize database with error handling
+try:
+    init_db()
+except Exception as e:
+    logger.warning(f"Database initialization failed: {e}")
+    logger.info("This might be due to database not being ready yet. The application will retry on first request.")
+    # Don't exit here, let the application start and retry on first request
 
 # Create the main app without a prefix
 app = FastAPI(title="Emergent Pentest Suite API", version="1.0.0")
@@ -171,8 +179,8 @@ class VulnerabilityCreate(BaseModel):
         if not v or not v.strip():
             raise ValueError('Title cannot be empty')
         
-        # Remove potentially dangerous characters
-        sanitized = re.sub(r'[<>"\']', '', v.strip())
+        # Use helper function for sanitization
+        sanitized = sanitize_input(v, 200)
         if len(sanitized) > 200:
             raise ValueError('Title too long (max 200 characters)')
         
@@ -213,8 +221,8 @@ class VulnerabilityCreate(BaseModel):
         if not v or not v.strip():
             raise ValueError('How it works cannot be empty')
         
-        # Remove potentially dangerous characters
-        sanitized = re.sub(r'[<>"\']', '', v.strip())
+        # Use helper function for sanitization
+        sanitized = sanitize_input(v, 10000)
         if len(sanitized) > 10000:
             raise ValueError('Description too long (max 10000 characters)')
         
@@ -257,8 +265,8 @@ class VulnerabilityUpdate(BaseModel):
         if not v or not v.strip():
             raise ValueError('Title cannot be empty')
         
-        # Remove potentially dangerous characters
-        sanitized = re.sub(r'[<>"\']', '', v.strip())
+        # Use helper function for sanitization
+        sanitized = sanitize_input(v, 200)
         if len(sanitized) > 200:
             raise ValueError('Title too long (max 200 characters)')
         
@@ -302,8 +310,8 @@ class VulnerabilityUpdate(BaseModel):
         if not v or not v.strip():
             raise ValueError('How it works cannot be empty')
         
-        # Remove potentially dangerous characters
-        sanitized = re.sub(r'[<>"\']', '', v.strip())
+        # Use helper function for sanitization
+        sanitized = sanitize_input(v, 10000)
         if len(sanitized) > 10000:
             raise ValueError('Description too long (max 10000 characters)')
         
@@ -748,7 +756,7 @@ async def create_project(
     
     # SECURITY: Safe logging - sanitize user input
     safe_user_id = str(current_user.id)[:8] + "..." if len(str(current_user.id)) > 8 else str(current_user.id)
-    print(f"🔧 Create Project Debug: User ID: {safe_user_id}")
+    logger.debug(f"Create Project: User ID: {safe_user_id}")
     
     # Create project in SQLite
     db_project = DBProject(
@@ -765,7 +773,7 @@ async def create_project(
     db.commit()
     db.refresh(db_project)
     
-    print(f"🔧 Create Project Debug: SQLite insert result: {db_project.id}")
+    logger.debug(f"Create Project: SQLite insert result: {db_project.id}")
     
     # Convert to Pydantic model for response
     project_obj = Project(
@@ -790,15 +798,15 @@ async def get_projects(
 ):
     # SECURITY: Safe logging - sanitize user input
     safe_user_id = str(current_user.id)[:8] + "..." if len(str(current_user.id)) > 8 else str(current_user.id)
-    print(f"🔍 Get Projects Debug: User ID: {safe_user_id}")
+    logger.debug(f"Get Projects: User ID: {safe_user_id}")
     
     # Get projects from SQLite
     db_projects = db.query(DBProject).filter(DBProject.user_id == current_user.id).all()
-    print(f"🔍 Get Projects Debug: Found {len(db_projects)} projects in SQLite")
+    logger.debug(f"Get Projects: Found {len(db_projects)} projects in SQLite")
     
     projects = []
     for db_project in db_projects:
-        print(f"🔍 Get Projects Debug: Project user_id: {db_project.user_id}")
+        logger.debug(f"Get Projects: Project user_id: {db_project.user_id}")
         
         # Get targets for this project
         targets = db.query(DBTarget).filter(DBTarget.project_id == db_project.id).all()
