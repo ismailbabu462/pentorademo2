@@ -62,6 +62,8 @@ def create_device_specific_jwt(user_id: str, device_id: str, device_secret: str,
 
 def get_or_create_device_for_fingerprint(device_fingerprint: str, device_name: str, device_type: str, user_id: str, db: Session) -> DBDevice:
     """Get existing device by fingerprint or create new one"""
+    print(f"Looking for device: fingerprint={device_fingerprint}, user_id={user_id}")
+    
     # First try to find existing device by fingerprint
     existing_device = db.query(DBDevice).filter(
         DBDevice.device_id == device_fingerprint,
@@ -70,11 +72,13 @@ def get_or_create_device_for_fingerprint(device_fingerprint: str, device_name: s
     ).first()
     
     if existing_device:
+        print(f"Found existing device: {existing_device.id}")
         # Update last used timestamp
         existing_device.last_used_at = datetime.now(timezone.utc)
         db.commit()
         return existing_device
     
+    print("Creating new device...")
     # Create new device if not found
     device_secret = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
@@ -95,6 +99,7 @@ def get_or_create_device_for_fingerprint(device_fingerprint: str, device_name: s
     db.commit()
     db.refresh(new_device)
     
+    print(f"Created new device: {new_device.id}")
     return new_device
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, device_id: Optional[str] = None):
@@ -121,12 +126,17 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, d
 def verify_device_token(token: str, db: Session) -> dict:
     """Verify JWT token using device-specific secret"""
     try:
+        print(f"Verifying token: {token[:50]}...")
+        
         # First decode without verification to get device_id
         unverified_payload = jwt.decode(token, options={"verify_signature": False})
         device_id = unverified_payload.get("device_id")
         user_id = unverified_payload.get("sub")
         
+        print(f"Token payload: device_id={device_id}, user_id={user_id}")
+        
         if not device_id or not user_id:
+            print("Missing device_id or user_id in token")
             raise HTTPException(status_code=401, detail="Invalid token format")
         
         # Get device and its secret key
@@ -136,7 +146,10 @@ def verify_device_token(token: str, db: Session) -> dict:
             DBDevice.is_active == True
         ).first()
         
+        print(f"Found device: {device}")
+        
         if not device:
+            print("Device not found or inactive")
             raise HTTPException(status_code=401, detail="Device not found or inactive")
         
         # Verify token with device-specific secret
@@ -146,10 +159,13 @@ def verify_device_token(token: str, db: Session) -> dict:
         device.last_used_at = datetime.now(timezone.utc)
         db.commit()
         
+        print("Token verification successful")
         return payload
-    except JWTError:
+    except jwt.InvalidTokenError as e:
+        print(f"JWT Error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
     except Exception as e:
+        print(f"Token verification error: {e}")
         raise HTTPException(status_code=401, detail="Token verification failed")
 
 def verify_token(token: str) -> dict:
@@ -343,8 +359,11 @@ async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depen
     Aynı cihazdan tekrar girişte eski verileri gösterir
     """
     try:
+        print(f"Auto-connect request: {device_request}")
+        
         # Check if any user exists
         existing_user = db.query(DBUser).first()
+        print(f"Existing user: {existing_user}")
         
         if existing_user:
             # Use existing user - get or create device for this fingerprint

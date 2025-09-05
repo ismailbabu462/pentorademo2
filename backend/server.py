@@ -2,6 +2,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import dependencies
+from routers.auth import get_current_user
 from dependencies import (
     check_project_creation_permissions,
     check_collaboration_permissions,
@@ -10,8 +11,7 @@ from dependencies import (
     check_nmap_execution_permissions,
     check_nuclei_execution_permissions,
     check_ffuf_execution_permissions,
-    check_gobuster_execution_permissions,
-    get_current_active_user
+    check_gobuster_execution_permissions
 )
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -793,7 +793,7 @@ async def create_project(
 
 @api_router.get("/projects", response_model=List[Project])
 async def get_projects(
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # SECURITY: Safe logging - sanitize user input
@@ -840,7 +840,7 @@ async def get_projects(
 @api_router.get("/projects/{project_id}", response_model=Project)
 async def get_project(
     project_id: str, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -893,7 +893,7 @@ async def get_project(
 async def update_project(
     project_id: str, 
     project_update: ProjectUpdate, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Get project from SQLite - SECURITY: Check ownership
@@ -947,7 +947,7 @@ async def update_project(
 @api_router.delete("/projects/{project_id}")
 async def delete_project(
     project_id: str, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Delete project from SQLite - SECURITY: Check ownership
@@ -1004,7 +1004,7 @@ async def invite_user_to_project(
 async def add_target_to_project(
     project_id: str, 
     target_data: TargetCreate, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # SECURITY: Check if project exists and belongs to current user
@@ -1042,7 +1042,7 @@ async def add_target_to_project(
 @api_router.get("/projects/{project_id}/targets", response_model=List[Target])
 async def get_project_targets(
     project_id: str, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # SECURITY: Check if project exists and belongs to current user
@@ -1072,7 +1072,7 @@ async def get_project_targets(
 async def remove_target_from_project(
     project_id: str, 
     target_id: str, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # SECURITY: Check if project exists and belongs to current user
@@ -1097,7 +1097,7 @@ async def remove_target_from_project(
 @api_router.post("/notes", response_model=Note)
 async def create_note(
     note_data: NoteCreate, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1151,7 +1151,7 @@ async def create_note(
 @api_router.get("/projects/{project_id}/notes", response_model=List[Note])
 async def get_project_notes(
     project_id: str, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1195,7 +1195,7 @@ async def get_project_notes(
 @api_router.get("/notes/{note_id}", response_model=Note)
 async def get_note(
     note_id: str, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1233,7 +1233,7 @@ async def get_note(
 async def update_note(
     note_id: str, 
     note_update: NoteUpdate, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1286,7 +1286,7 @@ async def update_note(
 @api_router.delete("/notes/{note_id}")
 async def delete_note(
     note_id: str, 
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Delete note from SQLite for the current user
@@ -1307,7 +1307,7 @@ async def delete_note(
 async def create_vulnerability(
     project_id: str,
     vuln_data: VulnerabilityCreate,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new vulnerability for a project"""
@@ -1369,7 +1369,7 @@ async def create_vulnerability(
 @api_router.get("/projects/{project_id}/vulnerabilities", response_model=List[Vulnerability])
 async def get_project_vulnerabilities(
     project_id: str,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all vulnerabilities for a project"""
@@ -1411,7 +1411,7 @@ async def get_project_vulnerabilities(
 @api_router.get("/vulnerabilities/{vuln_id}", response_model=Vulnerability)
 async def get_vulnerability(
     vuln_id: str,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get a specific vulnerability"""
@@ -1443,7 +1443,7 @@ async def get_vulnerability(
 async def update_vulnerability(
     vuln_id: str,
     vuln_update: VulnerabilityUpdate,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update a vulnerability"""
@@ -1496,7 +1496,7 @@ async def update_vulnerability(
 @api_router.delete("/vulnerabilities/{vuln_id}")
 async def delete_vulnerability(
     vuln_id: str,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Delete a vulnerability"""

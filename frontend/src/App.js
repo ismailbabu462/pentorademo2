@@ -31,6 +31,26 @@ function App() {
     const initializeApp = async () => {
       try {
         console.log('App: Starting device-specific auto-connect...');
+        
+        // Try to get existing token first
+        const existingToken = api.getAuthToken();
+        if (existingToken) {
+          console.log('App: Found existing token, verifying...');
+          try {
+            const response = await api.get('/auth/me');
+            console.log('App: Token is valid');
+            setAuthTokenState(existingToken);
+            setIsAuthenticated(true);
+            setIsLoading(false);
+            return;
+          } catch (error) {
+            console.log('App: Token invalid, removing...');
+            api.removeAuthToken();
+          }
+        }
+        
+        // No valid token, try auto-connect
+        console.log('App: Attempting auto-connect...');
         const success = await initializeAuth();
         
         if (success) {

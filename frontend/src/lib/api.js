@@ -31,6 +31,9 @@ export const getAuthToken = () => {
   return localStorage.getItem(TOKEN_KEY);
 };
 
+// Export for external use
+api.getAuthToken = getAuthToken;
+
 export const removeAuthToken = () => {
   localStorage.removeItem(TOKEN_KEY);
 };
@@ -39,9 +42,11 @@ export const removeAuthToken = () => {
 export const autoConnect = async () => {
   try {
     const deviceInfo = getDeviceInfo();
+    console.log('Device info:', deviceInfo);
     storeDeviceInfo(deviceInfo);
     
     const response = await api.post('/auth/auto-connect', deviceInfo);
+    console.log('Auto-connect response:', response.data);
     
     if (response.data && response.data.access_token) {
       setAuthToken(response.data.access_token);
@@ -80,12 +85,15 @@ export const initializeAuth = async () => {
   }
 };
 
-// Request interceptor to automatically add JWT token
+// Request interceptor to automatically add JWT token and debug
 api.interceptors.request.use(
   (config) => {
     const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('API Request:', config.method?.toUpperCase(), config.url, 'with token');
+    } else {
+      console.log('API Request:', config.method?.toUpperCase(), config.url, 'without token');
     }
     return config;
   },
@@ -94,38 +102,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    // Handle 401 Unauthorized errors
-    if (error.response?.status === 401) {
-      // Token might be expired or invalid
-      removeAuthToken();
-      // Optionally redirect to login or show error
-      console.warn('Authentication failed, token removed');
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Add request interceptor for debugging
-api.interceptors.request.use(
-  (config) => {
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
-    if (config.headers.Authorization) {
-      console.log('Authorization header added');
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor for debugging
+// Response interceptor for error handling and debugging
 api.interceptors.response.use(
   (response) => {
     console.log('API Response:', response.status, response.config.url);
@@ -133,6 +110,21 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Response Error:', error.response?.status, error.config?.url, error.message);
+    
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401) {
+      console.warn('Authentication failed, token removed');
+      removeAuthToken();
+      
+      // Try to re-authenticate automatically
+      if (error.config?.url !== '/auth/auto-connect' && error.config?.url !== '/auth/me') {
+        console.log('Attempting to re-authenticate...');
+        autoConnect().catch(err => {
+          console.error('Re-authentication failed:', err);
+        });
+      }
+    }
+    
     return Promise.reject(error);
   }
 );

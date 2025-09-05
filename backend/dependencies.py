@@ -5,8 +5,11 @@ import os
 from typing import Optional
 import asyncio
 import json
+import logging
 
 from database import get_db
+
+logger = logging.getLogger(__name__)
 
 # User model for type hints
 class User:
@@ -68,28 +71,21 @@ async def get_current_active_user(
         logger.debug(f"Auth: Token length: {len(token)}")
     
     try:
-        from jose import JWTError, jwt
-        from config import JWT_SECRET_KEY, JWT_ALGORITHM
+        from routers.auth import verify_device_token
         
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        # Use device-specific token verification
+        payload = verify_device_token(token, db)
         user_id = payload.get("sub")
         
         if not user_id:
-            if os.getenv("DEBUG", "false").lower() == "true":
-                logger.debug("Auth: No user ID in token")
             raise HTTPException(status_code=401, detail="Invalid token")
         
         # Get user from database
         from database import User as DBUser
         user_data = db.query(DBUser).filter(DBUser.id == user_id).first()
         if not user_data:
-            if os.getenv("DEBUG", "false").lower() == "true":
-                logger.debug("Auth: User not found in database")
             raise HTTPException(status_code=401, detail="User not found")
         
-        if os.getenv("DEBUG", "false").lower() == "true":
-            safe_username = str(user_data.username)[:20] + "..." if len(str(user_data.username)) > 20 else str(user_data.username)
-            logger.debug(f"Auth: User authenticated successfully: {safe_username}")
         return User({
             'id': user_data.id,
             'username': user_data.username,
@@ -99,10 +95,9 @@ async def get_current_active_user(
             'last_tool_run_at': user_data.last_tool_run_at
         })
         
-    except JWTError as e:
-        if os.getenv("DEBUG", "false").lower() == "true":
-            logger.debug(f"Auth: JWT Error: {e}")
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        print(f"Auth error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 async def check_project_limit(
     current_user: User = Depends(get_current_active_user),
