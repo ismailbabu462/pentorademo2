@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getDeviceInfo, storeDeviceInfo, getStoredDeviceInfo } from './deviceFingerprint';
 
 // Get API URL from environment variables
 // For PythonAnywhere, use relative URLs when deployed
@@ -32,6 +33,51 @@ export const getAuthToken = () => {
 
 export const removeAuthToken = () => {
   localStorage.removeItem(TOKEN_KEY);
+};
+
+// Auto-connect function for device-specific authentication
+export const autoConnect = async () => {
+  try {
+    const deviceInfo = getDeviceInfo();
+    storeDeviceInfo(deviceInfo);
+    
+    const response = await api.post('/auth/auto-connect', deviceInfo);
+    
+    if (response.data && response.data.access_token) {
+      setAuthToken(response.data.access_token);
+      return response.data;
+    }
+    
+    throw new Error('No token received');
+  } catch (error) {
+    console.error('Auto-connect failed:', error);
+    throw error;
+  }
+};
+
+// Initialize authentication on app start
+export const initializeAuth = async () => {
+  try {
+    // Check if we already have a valid token
+    const existingToken = getAuthToken();
+    if (existingToken) {
+      // Verify token is still valid by making a test request
+      try {
+        await api.get('/auth/me');
+        return true; // Token is valid
+      } catch (error) {
+        // Token is invalid, remove it
+        removeAuthToken();
+      }
+    }
+    
+    // No valid token, auto-connect
+    await autoConnect();
+    return true;
+  } catch (error) {
+    console.error('Auth initialization failed:', error);
+    return false;
+  }
 };
 
 // Request interceptor to automatically add JWT token

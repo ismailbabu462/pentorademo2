@@ -53,10 +53,15 @@
 - Token doğrulama sırasında `device_id` kontrolü eklendi
 - Cihaza özel token üretimi sağlandı
 - Token'lar artık cihaza özel çalışıyor
+- **YENİ**: Device fingerprinting sistemi eklendi
+- **YENİ**: Aynı cihazdan tekrar girişte eski veriler korunuyor
 
 **Etkilenen Dosyalar**:
 - `backend/routers/auth.py` - Token üretimi ve doğrulama
 - `backend/routers/keys.py` - Key activation token'ı
+- `backend/database.py` - Device tablosu eklendi
+- `frontend/src/lib/deviceFingerprint.js` - Browser fingerprinting
+- `frontend/src/lib/api.js` - Otomatik authentication
 
 ## 🛡️ Güvenlik Kontrol Listesi
 
@@ -76,10 +81,17 @@
    - [x] JWT token'lar cihaza özel
    - [x] Token doğrulama sırasında device_id kontrolü var
    - [x] Token üretiminde device_id eklendi
+   - [x] Device fingerprinting sistemi kuruldu
+   - [x] Aynı cihazdan tekrar girişte eski veriler korunuyor
 
 4. **Servis Bağlantıları**
    - [x] AI servisi Docker servis adı ile bağlanıyor
    - [x] localhost kullanımı kaldırıldı
+
+5. **Otomatik Authentication**
+   - [x] Login sistemi olmadan otomatik token üretimi
+   - [x] Browser fingerprinting ile cihaz tanımlama
+   - [x] Frontend'de otomatik authentication başlatma
 
 ## 🔍 Test Edilmesi Gerekenler
 

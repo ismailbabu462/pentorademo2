@@ -1100,39 +1100,53 @@ async def create_note(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # SECURITY: Verify project exists and belongs to current user
-    project = db.query(DBProject).filter(
-        DBProject.id == note_data.project_id,
-        DBProject.user_id == current_user.id
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        # SECURITY: Verify project exists and belongs to current user
+        project = db.query(DBProject).filter(
+            DBProject.id == note_data.project_id,
+            DBProject.user_id == current_user.id
+        ).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+            
+        # Create note in SQLite
+        db_note = DBNote(
+            title=note_data.title,
+            content=note_data.content,
+            tags=json.dumps(note_data.tags) if note_data.tags else None,
+            project_id=note_data.project_id,
+            user_id=current_user.id
+        )
         
-    # Create note in SQLite
-    db_note = DBNote(
-        title=note_data.title,
-        content=note_data.content,
-        tags=json.dumps(note_data.tags) if note_data.tags else None,
-        project_id=note_data.project_id,
-        user_id=current_user.id
-    )
-    
-    db.add(db_note)
-    db.commit()
-    db.refresh(db_note)
-    
-    note_obj = Note(
-        id=db_note.id,
-        title=db_note.title,
-        content=db_note.content,
-        tags=_safe_json_loads(db_note.tags, []),
-        project_id=db_note.project_id,
-        user_id=db_note.user_id,
-        created_at=db_note.created_at,
-        updated_at=db_note.updated_at
-    )
-    
-    return note_obj
+        db.add(db_note)
+        db.commit()
+        db.refresh(db_note)
+        
+        note_obj = Note(
+            id=db_note.id,
+            title=db_note.title,
+            content=db_note.content,
+            tags=_safe_json_loads(db_note.tags, []),
+            project_id=db_note.project_id,
+            user_id=db_note.user_id,
+            created_at=db_note.created_at,
+            updated_at=db_note.updated_at
+        )
+        
+        return note_obj
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log error internally, don't expose details
+        logger.error(f"Create note error for user {current_user.id}: {str(e)}")
+        try:
+            db.rollback()
+        except:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred"
+        )
 
 @api_router.get("/projects/{project_id}/notes", response_model=List[Note])
 async def get_project_notes(
@@ -1140,33 +1154,43 @@ async def get_project_notes(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # SECURITY: First verify project belongs to current user
-    project = db.query(DBProject).filter(
-        DBProject.id == project_id,
-        DBProject.user_id == current_user.id
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    # Get notes from SQLite for the current user
-    notes = db.query(DBNote).filter(
-        DBNote.project_id == project_id,
-        DBNote.user_id == current_user.id
-    ).all()
-    note_objects = [
-        Note(
-            id=note.id,
-            title=note.title,
-            content=note.content,
-            tags=_safe_json_loads(note.tags, []),
-            project_id=note.project_id,
-            user_id=note.user_id,
-            created_at=note.created_at,
-            updated_at=note.updated_at
-        ) for note in notes
-    ]
-    
-    return note_objects
+    try:
+        # SECURITY: First verify project belongs to current user
+        project = db.query(DBProject).filter(
+            DBProject.id == project_id,
+            DBProject.user_id == current_user.id
+        ).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get notes from SQLite for the current user
+        notes = db.query(DBNote).filter(
+            DBNote.project_id == project_id,
+            DBNote.user_id == current_user.id
+        ).all()
+        note_objects = [
+            Note(
+                id=note.id,
+                title=note.title,
+                content=note.content,
+                tags=_safe_json_loads(note.tags, []),
+                project_id=note.project_id,
+                user_id=note.user_id,
+                created_at=note.created_at,
+                updated_at=note.updated_at
+            ) for note in notes
+        ]
+        
+        return note_objects
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log error internally, don't expose details
+        logger.error(f"Get project notes error for user {current_user.id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred"
+        )
 
 @api_router.get("/notes/{note_id}", response_model=Note)
 async def get_note(
@@ -1174,26 +1198,36 @@ async def get_note(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # Get note from SQLite for the current user
-    note = db.query(DBNote).filter(
-        DBNote.id == note_id,
-        DBNote.user_id == current_user.id
-    ).first()
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
-    
-    note_obj = Note(
-        id=note.id,
-        title=note.title,
-        content=note.content,
-        tags=json.loads(note.tags) if note.tags else [],
-        project_id=note.project_id,
-        user_id=note.user_id,
-        created_at=note.created_at,
-        updated_at=note.updated_at
-    )
-    
-    return note_obj
+    try:
+        # Get note from SQLite for the current user
+        note = db.query(DBNote).filter(
+            DBNote.id == note_id,
+            DBNote.user_id == current_user.id
+        ).first()
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        note_obj = Note(
+            id=note.id,
+            title=note.title,
+            content=note.content,
+            tags=json.loads(note.tags) if note.tags else [],
+            project_id=note.project_id,
+            user_id=note.user_id,
+            created_at=note.created_at,
+            updated_at=note.updated_at
+        )
+        
+        return note_obj
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log error internally, don't expose details
+        logger.error(f"Get note error for user {current_user.id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred"
+        )
 
 @api_router.put("/notes/{note_id}", response_model=Note)
 async def update_note(
@@ -1202,38 +1236,52 @@ async def update_note(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # Get note from SQLite for the current user
-    note = db.query(DBNote).filter(
-        DBNote.id == note_id,
-        DBNote.user_id == current_user.id
-    ).first()
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
+    try:
+        # Get note from SQLite for the current user
+        note = db.query(DBNote).filter(
+            DBNote.id == note_id,
+            DBNote.user_id == current_user.id
+        ).first()
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+            
+        # Update note fields
+        update_data = note_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            if field == "tags" and value is not None:
+                setattr(note, field, json.dumps(value))
+            else:
+                setattr(note, field, value)
         
-    # Update note fields
-    update_data = note_update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        if field == "tags" and value is not None:
-            setattr(note, field, json.dumps(value))
-        else:
-            setattr(note, field, value)
-    
-    note.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(note)
-    
-    note_obj = Note(
-        id=note.id,
-        title=note.title,
-        content=note.content,
-        tags=json.loads(note.tags) if note.tags else [],
-        project_id=note.project_id,
-        user_id=note.user_id,
-        created_at=note.created_at,
-        updated_at=note.updated_at
-    )
-    
-    return note_obj
+        note.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(note)
+        
+        note_obj = Note(
+            id=note.id,
+            title=note.title,
+            content=note.content,
+            tags=json.loads(note.tags) if note.tags else [],
+            project_id=note.project_id,
+            user_id=note.user_id,
+            created_at=note.created_at,
+            updated_at=note.updated_at
+        )
+        
+        return note_obj
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log error internally, don't expose details
+        logger.error(f"Update note error for user {current_user.id}: {str(e)}")
+        try:
+            db.rollback()
+        except:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred"
+        )
 
 @api_router.delete("/notes/{note_id}")
 async def delete_note(

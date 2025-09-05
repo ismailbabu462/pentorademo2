@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import api, { setAuthToken } from "./lib/api";
+import api, { setAuthToken, initializeAuth } from "./lib/api";
 import { Toaster } from "./components/ui/sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -26,22 +26,25 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [authToken, setAuthTokenState] = useState(null);
 
-  // Auto-login on app start
+  // Auto-connect on app start with device fingerprinting
   useEffect(() => {
-    const autoLogin = async () => {
+    const initializeApp = async () => {
       try {
-        console.log('App: Starting auto-login...');
-        const response = await api.post('/auth/auto-login');
-        console.log('App: Auto-login response:', response.data);
+        console.log('App: Starting device-specific auto-connect...');
+        const success = await initializeAuth();
         
-        const token = response.data.access_token;
-        console.log('App: Setting auth token:', token ? 'Present' : 'Missing');
-        setAuthToken(token);
-        setAuthTokenState(token);
-        setIsAuthenticated(true);
-        console.log('App: Auto-login successful');
+        if (success) {
+          const token = api.getAuthToken();
+          setAuthTokenState(token);
+          setIsAuthenticated(true);
+          console.log('App: Device-specific auto-connect successful');
+        } else {
+          console.error('App: Auto-connect failed');
+          // Still allow access for development
+          setIsAuthenticated(true);
+        }
       } catch (error) {
-        console.error('App: Auto-login failed:', error);
+        console.error('App: Auto-connect failed:', error);
         // Still allow access for development
         setIsAuthenticated(true);
       } finally {
@@ -49,7 +52,7 @@ function App() {
       }
     };
 
-    autoLogin();
+    initializeApp();
   }, []);
 
   // Show loading while checking authentication

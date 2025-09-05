@@ -74,6 +74,24 @@ class User(Base):
     notes = relationship("Note", back_populates="user")
     tool_outputs = relationship("ToolOutput", back_populates="user")
     vulnerabilities = relationship("Vulnerability", back_populates="user")
+    devices = relationship("Device", back_populates="user")
+
+class Device(Base):
+    __tablename__ = "devices"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    device_id = Column(String(36), unique=True, nullable=False)  # Unique device identifier
+    device_name = Column(String(100), nullable=True)  # User-friendly device name
+    device_type = Column(String(50), nullable=True)  # web, mobile, desktop
+    jwt_secret_key = Column(String(255), nullable=False)  # Device-specific JWT secret
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    is_active = Column(Boolean, default=True)
+    last_used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    user = relationship("User", back_populates="devices")
 
 class Project(Base):
     __tablename__ = "projects"
