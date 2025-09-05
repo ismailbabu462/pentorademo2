@@ -5,22 +5,28 @@ This router handles vulnerability-related operations including
 AI-powered vulnerability enrichment and analysis.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from database import get_db, Vulnerability as DBVulnerability, Project as DBProject
-from dependencies import get_current_active_user
 # from tasks import enrich_vulnerability  # Disabled for now
 import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from database import Project as DBProject
+from database import Vulnerability as DBVulnerability
+from database import get_db
+from dependencies import get_current_active_user
 
 router = APIRouter(prefix="/api/vulnerabilities", tags=["vulnerabilities"])
 logger = logging.getLogger(__name__)
+
 
 class VulnerabilityAnalysisResponse(BaseModel):
     message: str
     task_id: str
     vulnerability_id: str
+
 
 class VulnerabilityResponse(BaseModel):
     id: str
@@ -34,15 +40,18 @@ class VulnerabilityResponse(BaseModel):
     created_at: str
     updated_at: str
 
-@router.post("/{vulnerability_id}/analyze", response_model=VulnerabilityAnalysisResponse)
+
+@router.post(
+    "/{vulnerability_id}/analyze", response_model=VulnerabilityAnalysisResponse
+)
 async def analyze_vulnerability(
     vulnerability_id: str,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     """
     Start AI-powered vulnerability analysis in the background.
-    
+
     This endpoint triggers a Celery task that will:
     1. Search the web for vulnerability information
     2. Scrape relevant content
@@ -51,66 +60,73 @@ async def analyze_vulnerability(
     """
     try:
         # SECURITY: Verify vulnerability exists and belongs to current user
-        vulnerability = db.query(DBVulnerability).join(DBProject).filter(
-            DBVulnerability.id == vulnerability_id,
-            DBProject.user_id == current_user.id
-        ).first()
-        
+        vulnerability = (
+            db.query(DBVulnerability)
+            .join(DBProject)
+            .filter(
+                DBVulnerability.id == vulnerability_id,
+                DBProject.user_id == current_user.id,
+            )
+            .first()
+        )
+
         if not vulnerability:
             raise HTTPException(
-                status_code=404,
-                detail="Vulnerability not found or access denied"
+                status_code=404, detail="Vulnerability not found or access denied"
             )
-        
+
         # Check if analysis is already in progress or completed
         if vulnerability.ai_analysis:
             raise HTTPException(
-                status_code=400,
-                detail="Vulnerability analysis already completed"
+                status_code=400, detail="Vulnerability analysis already completed"
             )
-        
+
         # Start background task (disabled for now)
         # task = enrich_vulnerability.delay(vulnerability_id)
-        
+
         logger.info(f"Started AI analysis for vulnerability {vulnerability_id}")
-        
+
         return VulnerabilityAnalysisResponse(
             message="AI analysis has started in the background. Results will be available shortly.",
             task_id="disabled",
-            vulnerability_id=vulnerability_id
+            vulnerability_id=vulnerability_id,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to start vulnerability analysis: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to start vulnerability analysis"
+            status_code=500, detail="Failed to start vulnerability analysis"
         )
+
 
 @router.get("/{vulnerability_id}", response_model=VulnerabilityResponse)
 async def get_vulnerability(
     vulnerability_id: str,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     """
     Get vulnerability details including AI analysis if available.
     """
     try:
         # SECURITY: Verify vulnerability exists and belongs to current user
-        vulnerability = db.query(DBVulnerability).join(DBProject).filter(
-            DBVulnerability.id == vulnerability_id,
-            DBProject.user_id == current_user.id
-        ).first()
-        
+        vulnerability = (
+            db.query(DBVulnerability)
+            .join(DBProject)
+            .filter(
+                DBVulnerability.id == vulnerability_id,
+                DBProject.user_id == current_user.id,
+            )
+            .first()
+        )
+
         if not vulnerability:
             raise HTTPException(
-                status_code=404,
-                detail="Vulnerability not found or access denied"
+                status_code=404, detail="Vulnerability not found or access denied"
             )
-        
+
         return VulnerabilityResponse(
             id=vulnerability.id,
             title=vulnerability.title,
@@ -121,59 +137,56 @@ async def get_vulnerability(
             project_id=vulnerability.project_id,
             user_id=vulnerability.user_id,
             created_at=vulnerability.created_at.isoformat(),
-            updated_at=vulnerability.updated_at.isoformat()
+            updated_at=vulnerability.updated_at.isoformat(),
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to get vulnerability: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve vulnerability"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve vulnerability")
+
 
 @router.get("/{vulnerability_id}/analysis-status")
 async def get_analysis_status(
     vulnerability_id: str,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    current_user=Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     """
     Get the current status of vulnerability analysis.
     """
     try:
         # SECURITY: Verify vulnerability exists and belongs to current user
-        vulnerability = db.query(DBVulnerability).join(DBProject).filter(
-            DBVulnerability.id == vulnerability_id,
-            DBProject.user_id == current_user.id
-        ).first()
-        
+        vulnerability = (
+            db.query(DBVulnerability)
+            .join(DBProject)
+            .filter(
+                DBVulnerability.id == vulnerability_id,
+                DBProject.user_id == current_user.id,
+            )
+            .first()
+        )
+
         if not vulnerability:
             raise HTTPException(
-                status_code=404,
-                detail="Vulnerability not found or access denied"
+                status_code=404, detail="Vulnerability not found or access denied"
             )
-        
+
         # Check if analysis is completed
         if vulnerability.ai_analysis:
             return {
                 "status": "completed",
                 "has_analysis": True,
-                "analysis_length": len(vulnerability.ai_analysis)
+                "analysis_length": len(vulnerability.ai_analysis),
             }
         else:
-            return {
-                "status": "pending",
-                "has_analysis": False,
-                "analysis_length": 0
-            }
-        
+            return {"status": "pending", "has_analysis": False, "analysis_length": 0}
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to get analysis status: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve analysis status"
+            status_code=500, detail="Failed to retrieve analysis status"
         )

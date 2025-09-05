@@ -1,4 +1,5 @@
-FROM node:18-alpine
+# Multi-stage build for production
+FROM node:18-alpine as builder
 
 WORKDIR /app
 
@@ -11,11 +12,20 @@ RUN npm install --legacy-peer-deps
 # Copy source code
 COPY . .
 
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Copy built application
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 # Expose port
-EXPOSE 3010
+EXPOSE 80
 
-# Set port environment variable
-ENV PORT=3010
-
-# Start the application
-CMD ["npm", "start"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

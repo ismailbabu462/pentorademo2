@@ -1,20 +1,23 @@
-from fastapi import APIRouter, HTTPException, Depends, Header
-from pydantic import BaseModel
+import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException
 from jose import jwt
 from jose.exceptions import JWTError
 from passlib.context import CryptContext
-import secrets
-import uuid
-from typing import Optional
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import get_db, User as DBUser, Device as DBDevice
+from database import Device as DBDevice
+from database import User as DBUser
+from database import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # JWT settings
-from config import JWT_SECRET_KEY, JWT_ALGORITHM, JWT_ACCESS_TOKEN_EXPIRE_DAYS
+from config import JWT_ACCESS_TOKEN_EXPIRE_DAYS, JWT_ALGORITHM, JWT_SECRET_KEY
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -22,6 +25,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class UserCreate(BaseModel):
     username: str
     email: str
+
 
 class DeviceConnectRequest(BaseModel):
     device_fingerprint: str  # Browser fingerprint
@@ -44,46 +48,64 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
-def create_device_specific_jwt(user_id: str, device_id: str, device_secret: str, expires_delta: Optional[timedelta] = None):
+def create_device_specific_jwt(
+    user_id: str,
+    device_id: str,
+    device_secret: str,
+    expires_delta: Optional[timedelta] = None,
+):
     """Create JWT token using device-specific secret key"""
     to_encode = {
         "sub": user_id,
         "device_id": device_id,
-        "iat": datetime.now(timezone.utc)
+        "iat": datetime.now(timezone.utc),
     }
-    
+
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(days=JWT_ACCESS_TOKEN_EXPIRE_DAYS)
-    
+        expire = datetime.now(timezone.utc) + timedelta(
+            days=JWT_ACCESS_TOKEN_EXPIRE_DAYS
+        )
+
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, device_secret, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
-def get_or_create_device_for_fingerprint(device_fingerprint: str, device_name: str, device_type: str, user_id: str, db: Session) -> DBDevice:
+
+def get_or_create_device_for_fingerprint(
+    device_fingerprint: str,
+    device_name: str,
+    device_type: str,
+    user_id: str,
+    db: Session,
+) -> DBDevice:
     """Get existing device by fingerprint or create new one"""
     print(f"Looking for device: fingerprint={device_fingerprint}, user_id={user_id}")
-    
+
     # First try to find existing device by fingerprint
-    existing_device = db.query(DBDevice).filter(
-        DBDevice.device_id == device_fingerprint,
-        DBDevice.user_id == user_id,
-        DBDevice.is_active == True
-    ).first()
-    
+    existing_device = (
+        db.query(DBDevice)
+        .filter(
+            DBDevice.device_id == device_fingerprint,
+            DBDevice.user_id == user_id,
+            DBDevice.is_active == True,
+        )
+        .first()
+    )
+
     if existing_device:
         print(f"Found existing device: {existing_device.id}")
         # Update last used timestamp
         existing_device.last_used_at = datetime.now(timezone.utc)
         db.commit()
         return existing_device
-    
+
     print("Creating new device...")
     # Create new device if not found
     device_secret = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
-    
+
     new_device = DBDevice(
         device_id=device_fingerprint,  # Use fingerprint as device_id
         device_name=device_name,
@@ -93,24 +115,31 @@ def get_or_create_device_for_fingerprint(device_fingerprint: str, device_name: s
         is_active=True,
         last_used_at=now,
         created_at=now,
-        updated_at=now
+        updated_at=now,
     )
-    
+
     db.add(new_device)
     db.commit()
     db.refresh(new_device)
-    
+
     print(f"Created new device: {new_device.id}")
     return new_device
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, device_id: Optional[str] = None):
+
+def create_access_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
+    device_id: Optional[str] = None,
+):
     """Legacy function - use create_device_specific_jwt instead"""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(days=JWT_ACCESS_TOKEN_EXPIRE_DAYS)
-    
+        expire = datetime.now(timezone.utc) + timedelta(
+            days=JWT_ACCESS_TOKEN_EXPIRE_DAYS
+        )
+
     # SECURITY: Add device-specific information to token
     if device_id:
         to_encode.update({"device_id": device_id})
@@ -118,7 +147,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, d
         # Generate a device ID if not provided
         device_id = str(uuid.uuid4())
         to_encode.update({"device_id": device_id})
-    
+
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
@@ -128,38 +157,42 @@ def verify_device_token(token: str, db: Session) -> dict:
     """Verify JWT token using device-specific secret"""
     try:
         print(f"Verifying token: {token[:50]}...")
-        
+
         # First decode without verification to get device_id
         unverified_payload = jwt.decode(token, options={"verify_signature": False})
         device_id = unverified_payload.get("device_id")
         user_id = unverified_payload.get("sub")
-        
+
         print(f"Token payload: device_id={device_id}, user_id={user_id}")
-        
+
         if not device_id or not user_id:
             print("Missing device_id or user_id in token")
             raise HTTPException(status_code=401, detail="Invalid token format")
-        
+
         # Get device and its secret key
-        device = db.query(DBDevice).filter(
-            DBDevice.device_id == device_id,
-            DBDevice.user_id == user_id,
-            DBDevice.is_active == True
-        ).first()
-        
+        device = (
+            db.query(DBDevice)
+            .filter(
+                DBDevice.device_id == device_id,
+                DBDevice.user_id == user_id,
+                DBDevice.is_active == True,
+            )
+            .first()
+        )
+
         print(f"Found device: {device}")
-        
+
         if not device:
             print("Device not found or inactive")
             raise HTTPException(status_code=401, detail="Device not found or inactive")
-        
+
         # Verify token with device-specific secret
         payload = jwt.decode(token, device.jwt_secret_key, algorithms=[JWT_ALGORITHM])
-        
+
         # Update last used timestamp
         device.last_used_at = datetime.now(timezone.utc)
         db.commit()
-        
+
         print("Token verification successful")
         return payload
     except JWTError as e:
@@ -168,6 +201,7 @@ def verify_device_token(token: str, db: Session) -> dict:
     except Exception as e:
         print(f"Token verification error: {e}")
         raise HTTPException(status_code=401, detail="Token verification failed")
+
 
 def verify_token(token: str) -> dict:
     """Legacy function - use verify_device_token instead"""
@@ -178,25 +212,27 @@ def verify_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-async def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> dict:
+async def get_current_user(
+    authorization: Optional[str] = Header(None), db: Session = Depends(get_db)
+) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization token required")
-    
+
     token = authorization.split(" ", 1)[1]
-    
+
     try:
         # Use device-specific token verification
         payload = verify_device_token(token, db)
         user_id = payload.get("sub")
         device_id = payload.get("device_id")
-        
+
         if not user_id or not device_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        
+
         user = db.query(DBUser).filter(DBUser.id == user_id).first()
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
-        
+
         return {
             "id": user.id,
             "username": user.username,
@@ -206,7 +242,7 @@ async def get_current_user(authorization: Optional[str] = Header(None), db: Sess
             "last_tool_run_at": user.last_tool_run_at,
             "created_at": user.created_at,
             "updated_at": user.updated_at,
-            "device_id": device_id
+            "device_id": device_id,
         }
     except HTTPException:
         raise
@@ -221,11 +257,11 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         existing_user = db.query(DBUser).filter(DBUser.email == user_data.email).first()
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already registered")
-        
+
         # Create new user
         user_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
-        
+
         db_user = DBUser(
             id=user_id,
             username=user_data.username,
@@ -234,17 +270,17 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             subscription_valid_until=None,
             last_tool_run_at=None,
             created_at=now,
-            updated_at=now
+            updated_at=now,
         )
-        
+
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
-        
+
         # SECURITY: Create device-specific access token
         device_id = str(uuid.uuid4())
         device_secret = secrets.token_urlsafe(32)  # Generate device-specific secret
-        
+
         # Create device record
         device = DBDevice(
             device_id=device_id,
@@ -255,15 +291,15 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             is_active=True,
             last_used_at=now,
             created_at=now,
-            updated_at=now
+            updated_at=now,
         )
-        
+
         db.add(device)
         db.commit()
-        
+
         # Create device-specific JWT token
         access_token = create_device_specific_jwt(user_id, device_id, device_secret)
-        
+
         return TokenResponse(
             access_token=access_token,
             token_type="bearer",
@@ -272,15 +308,20 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
                 username=db_user.username,
                 email=db_user.email,
                 tier=db_user.tier,
-                subscription_valid_until=db_user.subscription_valid_until.isoformat() if db_user.subscription_valid_until else None,
-                created_at=db_user.created_at.isoformat()
-            )
+                subscription_valid_until=(
+                    db_user.subscription_valid_until.isoformat()
+                    if db_user.subscription_valid_until
+                    else None
+                ),
+                created_at=db_user.created_at.isoformat(),
+            ),
         )
     except HTTPException:
         raise
     except Exception as e:
         # Log error internally, don't expose details
         import logging
+
         logging.error(f"Registration error: {str(e)}")
         try:
             db.rollback()
@@ -288,7 +329,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             pass
         raise HTTPException(
             status_code=500,
-            detail="An internal server error occurred during registration"
+            detail="An internal server error occurred during registration",
         )
 
 
@@ -300,12 +341,12 @@ async def login(user_data: UserCreate, db: Session = Depends(get_db)):
         if not user:
             # Auto-register if user doesn't exist
             return await register(user_data, db)
-        
+
         # SECURITY: Create device-specific access token
         device_id = str(uuid.uuid4())
         device_secret = secrets.token_urlsafe(32)  # Generate device-specific secret
         now = datetime.now(timezone.utc)
-        
+
         # Create device record
         device = DBDevice(
             device_id=device_id,
@@ -316,15 +357,15 @@ async def login(user_data: UserCreate, db: Session = Depends(get_db)):
             is_active=True,
             last_used_at=now,
             created_at=now,
-            updated_at=now
+            updated_at=now,
         )
-        
+
         db.add(device)
         db.commit()
-        
+
         # Create device-specific JWT token
         access_token = create_device_specific_jwt(user.id, device_id, device_secret)
-        
+
         return TokenResponse(
             access_token=access_token,
             token_type="bearer",
@@ -333,27 +374,34 @@ async def login(user_data: UserCreate, db: Session = Depends(get_db)):
                 username=user.username,
                 email=user.email,
                 tier=user.tier,
-                subscription_valid_until=user.subscription_valid_until.isoformat() if user.subscription_valid_until else None,
-                created_at=user.created_at.isoformat()
-            )
+                subscription_valid_until=(
+                    user.subscription_valid_until.isoformat()
+                    if user.subscription_valid_until
+                    else None
+                ),
+                created_at=user.created_at.isoformat(),
+            ),
         )
     except HTTPException:
         raise
     except Exception as e:
         # Log error internally, don't expose details
         import logging
+
         logging.error(f"Login error: {str(e)}")
         try:
             db.rollback()
         except:
             pass
         raise HTTPException(
-            status_code=500,
-            detail="An internal server error occurred during login"
+            status_code=500, detail="An internal server error occurred during login"
         )
 
+
 @router.post("/auto-connect", response_model=TokenResponse)
-async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depends(get_db)):
+async def auto_connect(
+    device_request: DeviceConnectRequest, db: Session = Depends(get_db)
+):
     """
     Otomatik bağlantı endpoint'i - siteye her girişte cihaza özel token üretir
     Login sistemi olmadığı için bu endpoint kullanılacak
@@ -361,11 +409,11 @@ async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depen
     """
     try:
         print(f"Auto-connect request: {device_request}")
-        
+
         # Check if any user exists
         existing_user = db.query(DBUser).first()
         print(f"Existing user: {existing_user}")
-        
+
         if existing_user:
             # Use existing user - get or create device for this fingerprint
             device = get_or_create_device_for_fingerprint(
@@ -373,10 +421,12 @@ async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depen
                 device_request.device_name,
                 device_request.device_type,
                 existing_user.id,
-                db
+                db,
             )
-            
-            access_token = create_device_specific_jwt(existing_user.id, device.device_id, device.jwt_secret_key)
+
+            access_token = create_device_specific_jwt(
+                existing_user.id, device.device_id, device.jwt_secret_key
+            )
             return TokenResponse(
                 access_token=access_token,
                 token_type="bearer",
@@ -385,15 +435,19 @@ async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depen
                     username=existing_user.username,
                     email=existing_user.email,
                     tier=existing_user.tier,
-                    subscription_valid_until=existing_user.subscription_valid_until.isoformat() if existing_user.subscription_valid_until else None,
-                    created_at=existing_user.created_at.isoformat()
-                )
+                    subscription_valid_until=(
+                        existing_user.subscription_valid_until.isoformat()
+                        if existing_user.subscription_valid_until
+                        else None
+                    ),
+                    created_at=existing_user.created_at.isoformat(),
+                ),
             )
         else:
             # Create a default user for first-time visitors
             user_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
-            
+
             db_user = DBUser(
                 id=user_id,
                 username="Demo User",
@@ -402,24 +456,26 @@ async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depen
                 subscription_valid_until=None,
                 last_tool_run_at=None,
                 created_at=now,
-                updated_at=now
+                updated_at=now,
             )
-            
+
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
-            
+
             # Create device for new user
             device = get_or_create_device_for_fingerprint(
                 device_request.device_fingerprint,
                 device_request.device_name,
                 device_request.device_type,
                 user_id,
-                db
+                db,
             )
-            
-            access_token = create_device_specific_jwt(user_id, device.device_id, device.jwt_secret_key)
-            
+
+            access_token = create_device_specific_jwt(
+                user_id, device.device_id, device.jwt_secret_key
+            )
+
             return TokenResponse(
                 access_token=access_token,
                 token_type="bearer",
@@ -428,13 +484,18 @@ async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depen
                     username=db_user.username,
                     email=db_user.email,
                     tier=db_user.tier,
-                    subscription_valid_until=db_user.subscription_valid_until.isoformat() if db_user.subscription_valid_until else None,
-                    created_at=db_user.created_at.isoformat()
-                )
+                    subscription_valid_until=(
+                        db_user.subscription_valid_until.isoformat()
+                        if db_user.subscription_valid_until
+                        else None
+                    ),
+                    created_at=db_user.created_at.isoformat(),
+                ),
             )
     except Exception as e:
         # Log error internally, don't expose details
         import logging
+
         logging.error(f"Auto-connect error: {str(e)}")
         try:
             db.rollback()
@@ -442,7 +503,7 @@ async def auto_connect(device_request: DeviceConnectRequest, db: Session = Depen
             pass
         raise HTTPException(
             status_code=500,
-            detail="An internal server error occurred during auto-connect"
+            detail="An internal server error occurred during auto-connect",
         )
 
 
@@ -451,25 +512,28 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     try:
         # Ensure datetime fields are properly serialized
         user_data = current_user.copy()
-        if 'created_at' in user_data and user_data['created_at']:
-            if hasattr(user_data['created_at'], 'isoformat'):
-                user_data['created_at'] = user_data['created_at'].isoformat()
-        if 'subscription_valid_until' in user_data and user_data['subscription_valid_until']:
-            if hasattr(user_data['subscription_valid_until'], 'isoformat'):
-                user_data['subscription_valid_until'] = user_data['subscription_valid_until'].isoformat()
-        
+        if "created_at" in user_data and user_data["created_at"]:
+            if hasattr(user_data["created_at"], "isoformat"):
+                user_data["created_at"] = user_data["created_at"].isoformat()
+        if (
+            "subscription_valid_until" in user_data
+            and user_data["subscription_valid_until"]
+        ):
+            if hasattr(user_data["subscription_valid_until"], "isoformat"):
+                user_data["subscription_valid_until"] = user_data[
+                    "subscription_valid_until"
+                ].isoformat()
+
         # Remove device_id from response (internal use only)
-        user_data.pop('device_id', None)
-        
+        user_data.pop("device_id", None)
+
         return UserResponse(**user_data)
     except Exception as e:
         # Log error internally, don't expose details
         import logging
+
         logging.error(f"Get user info error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="An internal server error occurred"
-        )
+        raise HTTPException(status_code=500, detail="An internal server error occurred")
 
 
 @router.post("/auto-login", response_model=TokenResponse)
@@ -478,13 +542,13 @@ async def auto_login(db: Session = Depends(get_db)):
     try:
         # Check if any user exists
         existing_user = db.query(DBUser).first()
-        
+
         if existing_user:
             # Use existing user - create new device
             device_id = str(uuid.uuid4())
             device_secret = secrets.token_urlsafe(32)
             now = datetime.now(timezone.utc)
-            
+
             device = DBDevice(
                 device_id=device_id,
                 device_name="Web Browser",
@@ -494,13 +558,15 @@ async def auto_login(db: Session = Depends(get_db)):
                 is_active=True,
                 last_used_at=now,
                 created_at=now,
-                updated_at=now
+                updated_at=now,
             )
-            
+
             db.add(device)
             db.commit()
-            
-            access_token = create_device_specific_jwt(existing_user.id, device_id, device_secret)
+
+            access_token = create_device_specific_jwt(
+                existing_user.id, device_id, device_secret
+            )
             return TokenResponse(
                 access_token=access_token,
                 token_type="bearer",
@@ -509,15 +575,19 @@ async def auto_login(db: Session = Depends(get_db)):
                     username=existing_user.username,
                     email=existing_user.email,
                     tier=existing_user.tier,
-                    subscription_valid_until=existing_user.subscription_valid_until.isoformat() if existing_user.subscription_valid_until else None,
-                    created_at=existing_user.created_at.isoformat()
-                )
+                    subscription_valid_until=(
+                        existing_user.subscription_valid_until.isoformat()
+                        if existing_user.subscription_valid_until
+                        else None
+                    ),
+                    created_at=existing_user.created_at.isoformat(),
+                ),
             )
         else:
             # Create a default user
             user_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
-            
+
             db_user = DBUser(
                 id=user_id,
                 username="Demo User",
@@ -526,17 +596,17 @@ async def auto_login(db: Session = Depends(get_db)):
                 subscription_valid_until=None,
                 last_tool_run_at=None,
                 created_at=now,
-                updated_at=now
+                updated_at=now,
             )
-            
+
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
-            
+
             # Create device for new user
             device_id = str(uuid.uuid4())
             device_secret = secrets.token_urlsafe(32)
-            
+
             device = DBDevice(
                 device_id=device_id,
                 device_name="Web Browser",
@@ -546,14 +616,14 @@ async def auto_login(db: Session = Depends(get_db)):
                 is_active=True,
                 last_used_at=now,
                 created_at=now,
-                updated_at=now
+                updated_at=now,
             )
-            
+
             db.add(device)
             db.commit()
-            
+
             access_token = create_device_specific_jwt(user_id, device_id, device_secret)
-            
+
             return TokenResponse(
                 access_token=access_token,
                 token_type="bearer",
@@ -562,13 +632,18 @@ async def auto_login(db: Session = Depends(get_db)):
                     username=db_user.username,
                     email=db_user.email,
                     tier=db_user.tier,
-                    subscription_valid_until=db_user.subscription_valid_until.isoformat() if db_user.subscription_valid_until else None,
-                    created_at=db_user.created_at.isoformat()
-                )
+                    subscription_valid_until=(
+                        db_user.subscription_valid_until.isoformat()
+                        if db_user.subscription_valid_until
+                        else None
+                    ),
+                    created_at=db_user.created_at.isoformat(),
+                ),
             )
     except Exception as e:
         # Log error internally, don't expose details
         import logging
+
         logging.error(f"Auto-login error: {str(e)}")
         try:
             db.rollback()
@@ -576,5 +651,5 @@ async def auto_login(db: Session = Depends(get_db)):
             pass
         raise HTTPException(
             status_code=500,
-            detail="An internal server error occurred during auto-login"
+            detail="An internal server error occurred during auto-login",
         )

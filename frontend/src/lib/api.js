@@ -2,9 +2,9 @@ import axios from 'axios';
 import { getDeviceInfo, storeDeviceInfo, getStoredDeviceInfo } from './deviceFingerprint';
 
 // Get API URL from environment variables
-// For PythonAnywhere, use relative URLs when deployed
+// For Google Cloud deployment, use environment variables
 const API_URL = process.env.REACT_APP_BACKEND_URL || 
-  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8001');
+  (process.env.NODE_ENV === 'production' ? 'https://pentorasecbeta.mywire.org' : 'http://localhost:8001');
 const BASE_URL = `${API_URL}/api`;
 
 // Create centralized Axios instance

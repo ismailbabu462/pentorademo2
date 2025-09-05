@@ -22,3 +22,9 @@ alembic==1.12.1
 
 # Lemon Squeezy Integration
 cryptography==3.4.8
+
+# Linting and Code Quality
+flake8==7.0.0
+black==24.10.0
+isort==5.13.2
+mypy==1.13.0

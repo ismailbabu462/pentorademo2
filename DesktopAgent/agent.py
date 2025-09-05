@@ -20,6 +20,9 @@ import hashlib
 import secrets
 from collections import defaultdict, deque
 
+# Import cloud configuration
+from cloud_config import CloudConfig
+
 # SECURITY CONFIGURATION
 SECURITY_CONFIG = {
     'max_message_size': 1024 * 1024,  # 1MB max message size
@@ -186,9 +189,15 @@ ALLOWED_TOOLS = {
 }
 
 class DesktopAgent:
-    def __init__(self, host='localhost', port=13337):
-        self.host = host
-        self.port = port
+    def __init__(self, host=None, port=None):
+        # Initialize cloud configuration
+        self.cloud_config = CloudConfig()
+        
+        # Use cloud config or provided values
+        network_config = self.cloud_config.get_network_config()
+        self.host = host or network_config['host']
+        self.port = port or network_config['port']
+        
         self.clients = set()
         self.user_last_tool_run = {}  # Track last tool run time per user
         
@@ -198,8 +207,14 @@ class DesktopAgent:
         self.active_tools = defaultdict(int)             # user_id -> active tool count
         self.client_ips = {}                             # websocket -> IP address
         self.session_tokens = {}                         # websocket -> session token
-        self.max_output_size = SECURITY_CONFIG['max_output_size']
+        
+        # Use cloud config for limits
+        security_config = self.cloud_config.get_security_config()
+        self.max_output_size = security_config['max_output_size']
         self.current_output_size = 0
+        
+        # Setup cloud logging if enabled
+        self.cloud_config.setup_cloud_logging()
         
     def get_client_ip(self, websocket) -> str:
         """Get client IP address from websocket"""
@@ -790,6 +805,14 @@ class DesktopAgent:
         """Start the WebSocket server"""
         logger.info(f"Starting Desktop Agent on {self.host}:{self.port}")
         
+        # Log cloud environment info
+        if self.cloud_config.is_cloud_environment():
+            logger.info("Running in Google Cloud environment")
+            metadata = self.cloud_config.get_cloud_metadata()
+            if metadata:
+                logger.info(f"Instance: {metadata.get('name', 'Unknown')}")
+                logger.info(f"Zone: {metadata.get('zone', 'Unknown')}")
+        
         # Check if tools are available (will auto-install when needed)
         for tool_name, config in ALLOWED_TOOLS.items():
             if self.is_tool_available(tool_name):
@@ -813,8 +836,46 @@ class DesktopAgent:
         logger.info(f"Desktop Agent is running on ws://{self.host}:{self.port}")
         logger.info(f"Available tools: {list(ALLOWED_TOOLS.keys())}")
         
+        # Start health check server if enabled
+        if self.cloud_config.config.get('enable_health_endpoint', True):
+            asyncio.create_task(self.start_health_server())
+        
         # Keep server running
         await server.wait_closed()
+    
+    async def start_health_server(self):
+        """Start HTTP health check server for Google Cloud"""
+        try:
+            import aiohttp
+            from aiohttp import web
+            
+            async def health_handler(request):
+                health_status = self.cloud_config.get_health_status()
+                health_status.update({
+                    'clients_connected': len(self.clients),
+                    'active_tools': sum(self.active_tools.values()),
+                    'uptime': time.time() - getattr(self, 'start_time', time.time()),
+                })
+                return web.json_response(health_status)
+            
+            app = web.Application()
+            app.router.add_get('/health', health_handler)
+            app.router.add_get('/', health_handler)
+            
+            runner = web.AppRunner(app)
+            await runner.setup()
+            
+            # Use a different port for health checks
+            health_port = self.port + 1
+            site = web.TCPSite(runner, '0.0.0.0', health_port)
+            await site.start()
+            
+            logger.info(f"Health check server running on http://0.0.0.0:{health_port}/health")
+            
+        except ImportError:
+            logger.warning("aiohttp not available, health check server disabled")
+        except Exception as e:
+            logger.warning(f"Failed to start health server: {e}")
 
 def main():
     """Main entry point"""

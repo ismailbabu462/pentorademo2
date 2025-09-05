@@ -2,21 +2,25 @@ import os
 from typing import List
 
 # JWT Configuration
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_TOKEN_EXPIRE_DAYS = 7  # Reduced from 30 days for better security
+
+# Validate JWT secret key
+if not JWT_SECRET_KEY or JWT_SECRET_KEY == "your-secret-key-change-in-production":
+    raise ValueError("JWT_SECRET_KEY must be set in production environment")
 
 # Database Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pentest_suite.db")
 
 # MySQL Configuration for local development
 MYSQL_DATABASE_URL = os.getenv(
-    "MYSQL_DATABASE_URL", 
-    "mysql+pymysql://root:rootpassword123@localhost:3306/pentest_suite"
+    "MYSQL_DATABASE_URL",
+    "mysql+pymysql://root:rootpassword123@localhost:3306/pentest_suite",
 )
 
 # CORS Configuration
-CORS_ORIGINS = "https://pentorasecbeta.mywire.org,http://localhost:3000,http://localhost:3010,https://*.pythonanywhere.com"
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "https://pentorasecbeta.mywire.org").split(",")
 
 # AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -45,9 +49,10 @@ SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "X-XSS-Protection": "1; mode=block",
-    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-    "Content-Security-Policy": "default-src 'self'",
-    "Referrer-Policy": "strict-origin-when-cross-origin"
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: ws:; frame-ancestors 'none';",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
 }
 
 # Rate Limiting Configuration
@@ -55,7 +60,7 @@ RATE_LIMIT_CONFIG = {
     "default_limit": RATE_LIMIT_PER_MINUTE,
     "window_seconds": 60,
     "per_user_limit": 50,  # Per user per window
-    "per_ip_limit": 200    # Per IP per window
+    "per_ip_limit": 200,  # Per IP per window
 }
 
 # Database Connection Pool Configuration
@@ -64,7 +69,7 @@ DATABASE_POOL_CONFIG = {
     "pool_recycle": 300,
     "pool_timeout": 30,
     "max_overflow": 10,
-    "pool_size": 10
+    "pool_size": 10,
 }
 
 # File Upload Configuration
@@ -78,7 +83,7 @@ VALIDATION_CONFIG = {
     "max_payload_length": 5000,
     "max_username_length": 100,
     "max_email_length": 255,
-    "min_password_length": 8
+    "min_password_length": 8,
 }
 
 # Tool Configuration
@@ -86,7 +91,7 @@ TOOL_CONFIG = {
     "max_output_size": 100000,  # 100KB
     "max_target_length": 500,
     "max_tool_name_length": 100,
-    "duplicate_check_minutes": 5
+    "duplicate_check_minutes": 5,
 }
 
 # AI Configuration
@@ -94,5 +99,5 @@ AI_CONFIG = {
     "max_context_length": 50000,
     "max_response_length": 10000,
     "timeout_seconds": 120,
-    "max_retries": 3
+    "max_retries": 3,
 }

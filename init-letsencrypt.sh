@@ -114,7 +114,7 @@ mkdir -p ./certbot/logs
 
 # Update nginx configuration with domain
 print_status "Updating Nginx configuration with domain: $DOMAIN"
-sed -i "s/your-domain.com/$DOMAIN/g" ./nginx/conf.d/default.conf
+sed -i "s/pentorasecbeta.mywire.org/$DOMAIN/g" ./nginx/conf.d/default.conf
 
 # Start Nginx container for initial certificate request
 print_status "Starting Nginx container for initial certificate request..."

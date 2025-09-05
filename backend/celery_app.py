@@ -5,8 +5,9 @@ This module configures Celery for background task processing,
 specifically for AI-powered vulnerability enrichment.
 """
 
-from celery import Celery
 import os
+
+from celery import Celery
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -20,7 +21,7 @@ celery_app = Celery(
     "pentorasec",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["tasks"]  # Include our tasks module
+    include=["tasks"],  # Include our tasks module
 )
 
 # Celery configuration
@@ -31,23 +32,18 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    
     # Task routing
     task_routes={
         "tasks.enrich_vulnerability": {"queue": "vulnerability_analysis"},
     },
-    
     # Task execution settings
     task_acks_late=True,
     worker_prefetch_multiplier=1,
-    
     # Result backend settings
     result_expires=3600,  # 1 hour
-    
     # Task time limits
     task_soft_time_limit=300,  # 5 minutes soft limit
-    task_time_limit=600,       # 10 minutes hard limit
-    
+    task_time_limit=600,  # 10 minutes hard limit
     # Retry settings
     task_default_retry_delay=60,  # 1 minute
     task_max_retries=3,

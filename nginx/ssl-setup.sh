@@ -42,6 +42,11 @@ print_warning "Please run ./init-letsencrypt.sh to get a proper Let's Encrypt ce
 # Update nginx configuration to use self-signed certificate
 print_status "Updating Nginx configuration to use self-signed certificate..."
 
+# Backup original config
+if [ -f "./nginx/conf.d/default.conf" ]; then
+    cp ./nginx/conf.d/default.conf ./nginx/conf.d/default.conf.backup
+fi
+
 # Create a temporary nginx config with self-signed certificate
 cat > ./nginx/conf.d/default-selfsigned.conf << 'EOF'
 # Nginx configuration with self-signed certificate
