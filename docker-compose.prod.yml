@@ -142,9 +142,6 @@ services:
         condition: service_healthy
     networks:
       - pentest_network
-    volumes:
-      - frontend_data:/app
-      - /app/node_modules
 
   # Nginx Reverse Proxy
   nginx:
