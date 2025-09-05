@@ -71,6 +71,7 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secure-jwt-secret-key-change-in-production}
       - LOG_LEVEL=WARNING
       - DEBUG=false
+      - ENVIRONMENT=production
     depends_on:
       mysql:
         condition: service_healthy
@@ -114,6 +115,7 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secure-jwt-secret-key-change-in-production}
       - LOG_LEVEL=WARNING
       - DEBUG=false
+      - ENVIRONMENT=production
     depends_on:
       mysql:
         condition: service_healthy

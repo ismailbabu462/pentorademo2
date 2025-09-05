@@ -49,6 +49,9 @@ MAX_JSON_SIZE=10240
 # Application
 APP_NAME=Emergent Pentest Suite API
 APP_VERSION=1.0.0
+
+# Environment
+ENVIRONMENT=production
 EOF
 
 echo "✅ Secure production.env file generated!"

@@ -6,9 +6,15 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_TOKEN_EXPIRE_DAYS = 7  # Reduced from 30 days for better security
 
-# Validate JWT secret key
-if not JWT_SECRET_KEY or JWT_SECRET_KEY == "your-secret-key-change-in-production":
-    raise ValueError("JWT_SECRET_KEY must be set in production environment")
+# Validate JWT secret key - only in production
+if os.getenv("ENVIRONMENT", "development") == "production":
+    if not JWT_SECRET_KEY or JWT_SECRET_KEY == "your-secret-key-change-in-production":
+        raise ValueError("JWT_SECRET_KEY must be set in production environment")
+elif not JWT_SECRET_KEY:
+    # Generate a default secret for development
+    import secrets
+    JWT_SECRET_KEY = secrets.token_urlsafe(32)
+    print(f"⚠️ Using generated JWT secret for development: {JWT_SECRET_KEY[:10]}...")
 
 # Database Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pentest_suite.db")

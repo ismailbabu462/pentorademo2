@@ -24,5 +24,8 @@ EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
+# Set environment
+ENV ENVIRONMENT=production
+
 # Run the application with database migration and wait
 CMD ["sh", "-c", "python scripts/wait_for_db.py && python scripts/migrate_database.py && python -m uvicorn server:app --host 0.0.0.0 --port 8001"]
