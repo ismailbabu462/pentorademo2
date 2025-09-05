@@ -211,7 +211,10 @@ def get_db():
         yield db
     except Exception as e:
         logger.error(f"❌ Database session error: {e}")
-        db.rollback()
+        try:
+            db.rollback()
+        except:
+            pass
         raise
     finally:
         try:

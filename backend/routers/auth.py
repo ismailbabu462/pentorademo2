@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
-from jose import JWTError, jwt
+from jose import jwt
+from jose.exceptions import JWTError
 from passlib.context import CryptContext
 import secrets
 import uuid
@@ -161,7 +162,7 @@ def verify_device_token(token: str, db: Session) -> dict:
         
         print("Token verification successful")
         return payload
-    except jwt.InvalidTokenError as e:
+    except JWTError as e:
         print(f"JWT Error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
     except Exception as e:

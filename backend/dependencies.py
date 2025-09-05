@@ -95,6 +95,9 @@ async def get_current_active_user(
             'last_tool_run_at': user_data.last_tool_run_at
         })
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         print(f"Auth error: {e}")
         raise HTTPException(status_code=401, detail="Authentication failed")
