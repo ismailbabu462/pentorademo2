@@ -6,6 +6,9 @@ import hmac
 import hashlib
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 try:
     # Prefer absolute import when running as a top-level app
     from routers.keys import get_current_user_id  # type: ignore

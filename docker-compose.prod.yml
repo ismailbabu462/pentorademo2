@@ -41,6 +41,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     container_name: pentest_backend
     restart: unless-stopped
     environment:
@@ -59,7 +61,7 @@ services:
     networks:
       - pentest_network
     volumes:
-      - ./backend:/app
+      - backend_data:/app
       - tools_data:/opt/tools:ro
     command: python -m uvicorn server:app --host 0.0.0.0 --port 8001
     healthcheck:
@@ -74,6 +76,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     container_name: pentest_frontend
     restart: unless-stopped
     environment:
@@ -86,7 +90,7 @@ services:
     networks:
       - pentest_network
     volumes:
-      - ./frontend:/app
+      - frontend_data:/app
       - /app/node_modules
 
   # Nginx Reverse Proxy
@@ -132,6 +136,8 @@ volumes:
   tools_data:
   ollama_data:
   nginx_logs:
+  backend_data:
+  frontend_data:
 
 networks:
   pentest_network:

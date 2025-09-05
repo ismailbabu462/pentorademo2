@@ -843,41 +843,51 @@ async def get_project(
     current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # Get project from SQLite - SECURITY: Check ownership
-    db_project = db.query(DBProject).filter(
-        DBProject.id == project_id,
-        DBProject.user_id == current_user.id
-    ).first()
-    if not db_project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    # Get targets for this project
-    targets = db.query(DBTarget).filter(DBTarget.project_id == db_project.id).all()
-    target_objects = [
-        Target(
-            id=target.id,
-            target_type=target.target_type,
-            value=target.value,
-            description=target.description,
-            is_in_scope=target.is_in_scope,
-            created_at=target.created_at
-        ) for target in targets
-    ]
-    
-    project_obj = Project(
-        id=db_project.id,
-        name=db_project.name,
-        description=db_project.description,
-        status=db_project.status,
-        start_date=db_project.start_date,
-        end_date=db_project.end_date,
-        team_members=json.loads(db_project.team_members) if db_project.team_members else [],
-        targets=target_objects,
-        created_at=db_project.created_at,
-        updated_at=db_project.updated_at
-    )
-    
-    return project_obj
+    try:
+        # Get project from SQLite - SECURITY: Check ownership
+        db_project = db.query(DBProject).filter(
+            DBProject.id == project_id,
+            DBProject.user_id == current_user.id
+        ).first()
+        if not db_project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Get targets for this project
+        targets = db.query(DBTarget).filter(DBTarget.project_id == db_project.id).all()
+        target_objects = [
+            Target(
+                id=target.id,
+                target_type=target.target_type,
+                value=target.value,
+                description=target.description,
+                is_in_scope=target.is_in_scope,
+                created_at=target.created_at
+            ) for target in targets
+        ]
+        
+        project_obj = Project(
+            id=db_project.id,
+            name=db_project.name,
+            description=db_project.description,
+            status=db_project.status,
+            start_date=db_project.start_date,
+            end_date=db_project.end_date,
+            team_members=json.loads(db_project.team_members) if db_project.team_members else [],
+            targets=target_objects,
+            created_at=db_project.created_at,
+            updated_at=db_project.updated_at
+        )
+        
+        return project_obj
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log error internally, don't expose details
+        logger.error(f"Get project error for user {current_user.id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred"
+        )
 
 @api_router.put("/projects/{project_id}", response_model=Project)
 async def update_project(

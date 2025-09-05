@@ -38,12 +38,21 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, device_id: Optional[str] = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(days=JWT_ACCESS_TOKEN_EXPIRE_DAYS)
+    
+    # SECURITY: Add device-specific information to token
+    if device_id:
+        to_encode.update({"device_id": device_id})
+    else:
+        # Generate a device ID if not provided
+        device_id = str(uuid.uuid4())
+        to_encode.update({"device_id": device_id})
+    
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
@@ -64,9 +73,14 @@ async def get_current_user(authorization: Optional[str] = Header(None), db: Sess
     token = authorization.split(" ", 1)[1]
     payload = verify_token(token)
     user_id = payload.get("sub")
+    device_id = payload.get("device_id")
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # SECURITY: Verify device_id is present for device-specific tokens
+    if not device_id:
+        raise HTTPException(status_code=401, detail="Device-specific token required")
     
     user = db.query(DBUser).filter(DBUser.id == user_id).first()
     if not user:
@@ -80,122 +94,27 @@ async def get_current_user(authorization: Optional[str] = Header(None), db: Sess
         "subscription_valid_until": user.subscription_valid_until,
         "last_tool_run_at": user.last_tool_run_at,
         "created_at": user.created_at,
-        "updated_at": user.updated_at
+        "updated_at": user.updated_at,
+        "device_id": device_id
     }
 
 
 @router.post("/register", response_model=TokenResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
-    existing_user = db.query(DBUser).filter(DBUser.email == user_data.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Create new user
-    user_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    
-    db_user = DBUser(
-        id=user_id,
-        username=user_data.username,
-        email=user_data.email,
-        tier="essential",
-        subscription_valid_until=None,
-        last_tool_run_at=None,
-        created_at=now,
-        updated_at=now
-    )
-    
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    # Create access token
-    access_token = create_access_token(data={"sub": user_id})
-    
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=UserResponse(
-            id=db_user.id,
-            username=db_user.username,
-            email=db_user.email,
-            tier=db_user.tier,
-            subscription_valid_until=db_user.subscription_valid_until.isoformat() if db_user.subscription_valid_until else None,
-            created_at=db_user.created_at.isoformat()
-        )
-    )
-
-
-@router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserCreate, db: Session = Depends(get_db)):
-    # Find user by email
-    user = db.query(DBUser).filter(DBUser.email == user_data.email).first()
-    if not user:
-        # Auto-register if user doesn't exist
-        return await register(user_data, db)
-    
-    # Create access token
-    access_token = create_access_token(data={"sub": user.id})
-    
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=UserResponse(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            tier=user.tier,
-            subscription_valid_until=user.subscription_valid_until.isoformat() if user.subscription_valid_until else None,
-            created_at=user.created_at.isoformat()
-        )
-    )
-
-
-@router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: dict = Depends(get_current_user)):
-    # Ensure datetime fields are properly serialized
-    user_data = current_user.copy()
-    if 'created_at' in user_data and user_data['created_at']:
-        if hasattr(user_data['created_at'], 'isoformat'):
-            user_data['created_at'] = user_data['created_at'].isoformat()
-    if 'subscription_valid_until' in user_data and user_data['subscription_valid_until']:
-        if hasattr(user_data['subscription_valid_until'], 'isoformat'):
-            user_data['subscription_valid_until'] = user_data['subscription_valid_until'].isoformat()
-    
-    return UserResponse(**user_data)
-
-
-@router.post("/auto-login", response_model=TokenResponse)
-async def auto_login(db: Session = Depends(get_db)):
-    """Auto-login endpoint for development - creates a user if none exists"""
-    # Check if any user exists
-    existing_user = db.query(DBUser).first()
-    
-    if existing_user:
-        # Use existing user
-        access_token = create_access_token(data={"sub": existing_user.id})
-        return TokenResponse(
-            access_token=access_token,
-            token_type="bearer",
-            user=UserResponse(
-                id=existing_user.id,
-                username=existing_user.username,
-                email=existing_user.email,
-                tier=existing_user.tier,
-                subscription_valid_until=existing_user.subscription_valid_until.isoformat() if existing_user.subscription_valid_until else None,
-                created_at=existing_user.created_at.isoformat()
-            )
-        )
-    else:
-        # Create a default user
+    try:
+        # Check if user already exists
+        existing_user = db.query(DBUser).filter(DBUser.email == user_data.email).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create new user
         user_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         
         db_user = DBUser(
             id=user_id,
-            username="Demo User",
-            email="demo@example.com",
+            username=user_data.username,
+            email=user_data.email,
             tier="essential",
             subscription_valid_until=None,
             last_tool_run_at=None,
@@ -207,7 +126,9 @@ async def auto_login(db: Session = Depends(get_db)):
         db.commit()
         db.refresh(db_user)
         
-        access_token = create_access_token(data={"sub": user_id})
+        # SECURITY: Create device-specific access token
+        device_id = str(uuid.uuid4())
+        access_token = create_access_token(data={"sub": user_id}, device_id=device_id)
         
         return TokenResponse(
             access_token=access_token,
@@ -220,4 +141,145 @@ async def auto_login(db: Session = Depends(get_db)):
                 subscription_valid_until=db_user.subscription_valid_until.isoformat() if db_user.subscription_valid_until else None,
                 created_at=db_user.created_at.isoformat()
             )
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log error internally, don't expose details
+        import logging
+        logging.error(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred during registration"
+        )
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(user_data: UserCreate, db: Session = Depends(get_db)):
+    try:
+        # Find user by email
+        user = db.query(DBUser).filter(DBUser.email == user_data.email).first()
+        if not user:
+            # Auto-register if user doesn't exist
+            return await register(user_data, db)
+        
+        # SECURITY: Create device-specific access token
+        device_id = str(uuid.uuid4())
+        access_token = create_access_token(data={"sub": user.id}, device_id=device_id)
+        
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            user=UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                tier=user.tier,
+                subscription_valid_until=user.subscription_valid_until.isoformat() if user.subscription_valid_until else None,
+                created_at=user.created_at.isoformat()
+            )
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log error internally, don't expose details
+        import logging
+        logging.error(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred during login"
+        )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    try:
+        # Ensure datetime fields are properly serialized
+        user_data = current_user.copy()
+        if 'created_at' in user_data and user_data['created_at']:
+            if hasattr(user_data['created_at'], 'isoformat'):
+                user_data['created_at'] = user_data['created_at'].isoformat()
+        if 'subscription_valid_until' in user_data and user_data['subscription_valid_until']:
+            if hasattr(user_data['subscription_valid_until'], 'isoformat'):
+                user_data['subscription_valid_until'] = user_data['subscription_valid_until'].isoformat()
+        
+        # Remove device_id from response (internal use only)
+        user_data.pop('device_id', None)
+        
+        return UserResponse(**user_data)
+    except Exception as e:
+        # Log error internally, don't expose details
+        import logging
+        logging.error(f"Get user info error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred"
+        )
+
+
+@router.post("/auto-login", response_model=TokenResponse)
+async def auto_login(db: Session = Depends(get_db)):
+    """Auto-login endpoint for development - creates a user if none exists"""
+    try:
+        # Check if any user exists
+        existing_user = db.query(DBUser).first()
+        
+        if existing_user:
+            # Use existing user
+            device_id = str(uuid.uuid4())
+            access_token = create_access_token(data={"sub": existing_user.id}, device_id=device_id)
+            return TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                user=UserResponse(
+                    id=existing_user.id,
+                    username=existing_user.username,
+                    email=existing_user.email,
+                    tier=existing_user.tier,
+                    subscription_valid_until=existing_user.subscription_valid_until.isoformat() if existing_user.subscription_valid_until else None,
+                    created_at=existing_user.created_at.isoformat()
+                )
+            )
+        else:
+            # Create a default user
+            user_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc)
+            
+            db_user = DBUser(
+                id=user_id,
+                username="Demo User",
+                email="demo@example.com",
+                tier="essential",
+                subscription_valid_until=None,
+                last_tool_run_at=None,
+                created_at=now,
+                updated_at=now
+            )
+            
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            
+            device_id = str(uuid.uuid4())
+            access_token = create_access_token(data={"sub": user_id}, device_id=device_id)
+            
+            return TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                user=UserResponse(
+                    id=db_user.id,
+                    username=db_user.username,
+                    email=db_user.email,
+                    tier=db_user.tier,
+                    subscription_valid_until=db_user.subscription_valid_until.isoformat() if db_user.subscription_valid_until else None,
+                    created_at=db_user.created_at.isoformat()
+                )
+            )
+    except Exception as e:
+        # Log error internally, don't expose details
+        import logging
+        logging.error(f"Auto-login error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred during auto-login"
         )

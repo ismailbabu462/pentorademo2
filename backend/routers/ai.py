@@ -403,8 +403,10 @@ Output:
         }
         
         # Send request to Ollama with configurable timeout
+        # SECURITY: Use Docker service name instead of localhost
+        ollama_service_url = "http://pentest_ollama:11434"
         response = requests.post(
-            f"{OLLAMA_URL}/api/generate",
+            f"{ollama_service_url}/api/generate",
             json=ollama_request,
             timeout=AI_CONFIG["timeout_seconds"]
         )
@@ -450,14 +452,16 @@ async def get_ai_status():
     """
     try:
         # Check if Ollama is running
-        response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        # SECURITY: Use Docker service name instead of localhost
+        ollama_service_url = "http://pentest_ollama:11434"
+        response = requests.get(f"{ollama_service_url}/api/tags", timeout=5)
         ollama_available = response.status_code == 200
         
         return {
             "available": ollama_available,
             "service": "Ollama",
             "model": MODEL_NAME,
-            "url": OLLAMA_URL,
+            "url": ollama_service_url,
             "status": "running" if ollama_available else "not_available"
         }
     except:
@@ -465,6 +469,6 @@ async def get_ai_status():
             "available": False,
             "service": "Ollama",
             "model": MODEL_NAME,
-            "url": OLLAMA_URL,
+            "url": "http://pentest_ollama:11434",
             "status": "not_available"
         }
